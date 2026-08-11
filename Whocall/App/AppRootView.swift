@@ -1,10 +1,19 @@
 import Observation
 import SwiftUI
 
+#if canImport(FirebaseAuth)
+@preconcurrency import FirebaseAuth
+import FirebaseCore
+#endif
+
 @MainActor
 @Observable
 final class AppSession {
     var isAuthenticated: Bool
+
+#if canImport(FirebaseAuth)
+    private var authStateHandle: AuthStateDidChangeListenerHandle?
+#endif
 
     init() {
 #if DEBUG
@@ -12,6 +21,27 @@ final class AppSession {
 #else
         isAuthenticated = false
 #endif
+    }
+
+    func start() {
+#if canImport(FirebaseAuth)
+        guard authStateHandle == nil, FirebaseApp.app() != nil else { return }
+        isAuthenticated = Auth.auth().currentUser != nil
+        authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            Task { @MainActor in
+                self?.isAuthenticated = user != nil
+            }
+        }
+#endif
+    }
+
+    func signOut() {
+#if canImport(FirebaseAuth)
+        if FirebaseApp.app() != nil {
+            try? Auth.auth().signOut()
+        }
+#endif
+        isAuthenticated = false
     }
 }
 
@@ -37,11 +67,14 @@ struct AppRootView: View {
             } else if !session.isAuthenticated {
                 AuthFlowView { session.isAuthenticated = true }
             } else {
-                AppShellView { session.isAuthenticated = false }
+                AppShellView { session.signOut() }
             }
         }
         .environment(purchaseStore)
-        .task { await purchaseStore.start() }
+        .task {
+            session.start()
+            await purchaseStore.start()
+        }
         .preferredColorScheme(.light)
     }
 

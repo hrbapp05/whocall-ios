@@ -1,94 +1,120 @@
 import SwiftUI
 
 struct LoginView: View {
+    private let referenceSize = CGSize(width: 402, height: 874)
+
     var body: some View {
         GeometryReader { proxy in
-            VStack(spacing: 0) {
+            let scale = min(
+                proxy.size.width / referenceSize.width,
+                proxy.size.height / referenceSize.height
+            )
+
+            ZStack {
+                DesignTokens.ColorToken.background
+
                 Image("WhoCallLogo")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 124, height: 26)
-                    .padding(.top, 20)
+                    .position(x: 201, y: 93)
                     .figmaEntrance(delay: 0.02, distance: 8)
-                    .zIndex(4)
-                    .fixedSize()
-                    .layoutPriority(2)
 
-                emojiOrbit
-                    .frame(height: min(484, proxy.size.height * 0.57))
-                    .clipped()
+                Image("LoginAppIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 267, height: 266)
+                    .position(x: 201.5, y: 364)
+                    .popEntrance(delay: 0.12, initialScale: 0.34)
+                    .gentleFloat(distance: 3, duration: 2.7)
+                    .zIndex(1)
 
-                Text("WhoCall'a Hoş Geldin!")
-                    .font(.system(size: 32, weight: .bold))
-                    .multilineTextAlignment(.center)
-                    .figmaEntrance(delay: 0.18, distance: 14)
+                ForEach(Array(emojiLayout.enumerated()), id: \.offset) { index, emoji in
+                    Image(emoji.asset)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: emoji.size, height: emoji.size)
+                        .rotationEffect(.degrees(emoji.rotation))
+                        .position(x: emoji.center.x, y: emoji.center.y)
+                        .popEntrance(
+                            delay: 0.06 + Double(index) * 0.055,
+                            initialScale: 0.015
+                        )
+                        .gentleFloat(
+                            distance: 3 + CGFloat(index % 3),
+                            duration: 2 + Double(index % 4) * 0.2,
+                            delay: Double(index) * 0.035
+                        )
+                        .zIndex(2)
+                }
+
+                welcomeTitle
+                    .frame(width: 362, height: 38)
+                    .position(x: 201, y: 676)
+                    .figmaEntrance(delay: 0.25, distance: 13)
 
                 Text("Numara Sorgulamak, Arayanı Tanımak Ve Detayları\nGörmek İçin Hemen Giriş Yap.")
                     .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(red: 124 / 255, green: 124 / 255, blue: 124 / 255))
                     .multilineTextAlignment(.center)
                     .lineSpacing(1)
-                    .padding(.top, 14)
-                    .figmaEntrance(delay: 0.24, distance: 12)
+                    .frame(width: 362, height: 34)
+                    .position(x: 201, y: 728)
+                    .figmaEntrance(delay: 0.31, distance: 11)
 
-                Spacer(minLength: 18)
-
-                NavigationLink("Giriş Yap", value: AuthRoute.phone)
-                    .buttonStyle(PrimaryButtonStyle())
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, max(proxy.safeAreaInsets.bottom + 6, 14))
-                    .figmaEntrance(delay: 0.32, distance: 16)
-                    .accessibilityIdentifier("auth.login")
+                NavigationLink(value: AuthRoute.phone) {
+                    Text("Giriş Yap")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 364, height: 60)
+                        .background(.black, in: .capsule)
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                .position(x: 202, y: 810)
+                .figmaEntrance(delay: 0.38, distance: 16)
+                .accessibilityIdentifier("auth.login")
             }
-            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+            .frame(width: referenceSize.width, height: referenceSize.height)
+            .scaleEffect(scale)
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .background(DesignTokens.ColorToken.background)
         }
+        .ignoresSafeArea()
         .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var emojiOrbit: some View {
-        ZStack {
-            Image("LoginAppIcon")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 267, height: 266)
-                .figmaEntrance(delay: 0.08, distance: 0)
-                .gentleFloat(distance: 5, duration: 2.4)
-
-            ForEach(0..<12, id: \.self) { index in
-                Image("LoginEmoji\(index)")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: emojiSize(index), height: emojiSize(index))
-                    .offset(emojiOffset(index))
-                    .gentleFloat(
-                        distance: 4 + CGFloat(index % 3),
-                        duration: 1.9 + Double(index % 4) * 0.22,
-                        delay: Double(index) * 0.04
-                    )
-                    .figmaEntrance(delay: 0.05 + Double(index) * 0.025, distance: 10)
-            }
-
-            Image("IntroStickerLove")
-                .resizable().scaledToFit().frame(width: 64)
-                .offset(x: -126, y: -118)
-                .gentleFloat(distance: 5, duration: 2.2, delay: 0.2)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    private var welcomeTitle: some View {
+        (Text("WhoCall").fontWeight(.bold) + Text("'a Hoş Geldin!").fontWeight(.medium))
+            .font(.system(size: 32))
+            .foregroundStyle(.black)
+            .multilineTextAlignment(.center)
     }
 
-    private func emojiOffset(_ index: Int) -> CGSize {
-        let positions: [CGSize] = [
-            .init(width: -71, height: -120), .init(width: 4, height: -134),
-            .init(width: 82, height: -122), .init(width: 139, height: -55),
-            .init(width: 144, height: 35), .init(width: 99, height: 105),
-            .init(width: 24, height: 132), .init(width: -56, height: 120),
-            .init(width: -124, height: 75), .init(width: -151, height: 0),
-            .init(width: -136, height: -70), .init(width: 57, height: -54)
+    private var emojiLayout: [LoginEmojiLayout] {
+        [
+            .init(asset: "IntroStickerLaugh", center: .init(x: 363, y: 321), size: 83, rotation: 11.7),
+            .init(asset: "LoginEmoji0", center: .init(x: 304.5, y: 382.5), size: 71),
+            .init(asset: "LoginEmoji1", center: .init(x: 47, y: 348.7), size: 88, rotation: -17.4),
+            .init(asset: "LoginEmoji2", center: .init(x: 139, y: 297.3), size: 82, rotation: 12.1),
+            .init(asset: "LoginEmoji3", center: .init(x: 295.8, y: 487.5), size: 87),
+            .init(asset: "LoginEmoji4", center: .init(x: 109.5, y: 494.5), size: 83),
+            .init(asset: "LoginEmoji5", center: .init(x: 370.5, y: 432.5), size: 75),
+            .init(asset: "LoginEmoji6", center: .init(x: 40.2, y: 431.8), size: 80),
+            .init(asset: "LoginEmoji7", center: .init(x: 343.1, y: 240.6), size: 91, rotation: 14),
+            .init(asset: "IntroStickerCurly", center: .init(x: 201.5, y: 552), size: 83),
+            .init(asset: "IntroStickerLove", center: .init(x: 93, y: 246), size: 82),
+            .init(asset: "LoginEmoji11", center: .init(x: 266.8, y: 276.6), size: 62),
+            .init(asset: "LoginEmoji8", center: .init(x: 101.5, y: 391.5), size: 67),
+            .init(asset: "LoginEmoji9", center: .init(x: 206.5, y: 470.5), size: 67),
+            .init(asset: "LoginEmoji10", center: .init(x: 201.5, y: 226.5), size: 67)
         ]
-        return positions[index]
     }
+}
 
-    private func emojiSize(_ index: Int) -> CGFloat {
-        [52, 58, 56, 62, 58, 61, 58, 60, 55, 58, 54, 50][index]
-    }
+private struct LoginEmojiLayout {
+    let asset: String
+    let center: CGPoint
+    let size: CGFloat
+    var rotation: Double = 0
 }

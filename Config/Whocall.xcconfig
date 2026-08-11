@@ -1,5 +1,6 @@
-// Copy as Secrets.xcconfig. Never commit the real file.
 WHOCALL_API_BASE_URL = https:/$()/whocallapp.online
 WHOCALL_API_KEY =
 REVENUECAT_PUBLIC_SDK_KEY =
 FIREBASE_REVERSED_CLIENT_ID =
+
+#include? "Secrets.xcconfig"
