@@ -9,8 +9,16 @@ struct ProfileView: View {
             List {
                 Section {
                     HStack(spacing: 12) {
-                        Text("G").font(.title2.weight(.bold)).frame(width: 64, height: 64).background(DesignTokens.ColorToken.mint, in: .circle)
-                        VStack(alignment: .leading) { Text("Göktuğ S.").font(.headline); Text("+90 506 158 55 98").foregroundStyle(.secondary); Text("40 Etiket").font(.caption).foregroundStyle(DesignTokens.ColorToken.brandBlue) }
+                        Text(profileInitials)
+                            .font(.title2.weight(.bold))
+                            .frame(width: 64, height: 64)
+                            .background(DesignTokens.ColorToken.mint, in: .circle)
+                        VStack(alignment: .leading) {
+                            Text(displayName).font(.headline)
+                            if let phoneNumber {
+                                Text(phoneNumber).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
                 Section("Hesabım") {
@@ -32,5 +40,18 @@ struct ProfileView: View {
             .navigationTitle("Profil")
         }
     }
-}
 
+    private var displayName: String {
+        ProfileServiceFactory.live().currentDisplayName ?? "WhoCall Kullanıcısı"
+    }
+
+    private var phoneNumber: String? {
+        ProfileServiceFactory.live().currentPhoneNumber
+    }
+
+    private var profileInitials: String {
+        let letters = displayName.split(separator: " ").prefix(2).compactMap(\.first)
+        let value = String(letters).uppercased(with: Locale(identifier: "tr_TR"))
+        return value.isEmpty ? "W" : value
+    }
+}

@@ -43,12 +43,21 @@ final class AppSession {
 #endif
         isAuthenticated = false
     }
+
+    var requiresProfileCompletion: Bool {
+        let name = ProfileServiceFactory.live().currentDisplayName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return name?.split(separator: " ").count ?? 0 < 2
+    }
 }
 
 struct AppRootView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var session = AppSession()
     @State private var purchaseStore = PurchaseStore()
+    @State private var contactService = ContactService()
+    @State private var recentLookupStore = RecentLookupStore()
+    @State private var postAuthenticationFlow: PostAuthenticationPresentation?
 
     private var skipsOnboardingForUITest: Bool {
 #if DEBUG
@@ -65,12 +74,28 @@ struct AppRootView: View {
             } else if !hasCompletedOnboarding && !skipsOnboardingForUITest {
                 OnboardingView { hasCompletedOnboarding = true }
             } else if !session.isAuthenticated {
-                AuthFlowView { session.isAuthenticated = true }
+                AuthFlowView {
+                    session.isAuthenticated = true
+                    postAuthenticationFlow = PostAuthenticationPresentation(
+                        requiresProfileCompletion: session.requiresProfileCompletion
+                    )
+                }
             } else {
                 AppShellView { session.signOut() }
             }
         }
         .environment(purchaseStore)
+        .environment(contactService)
+        .environment(recentLookupStore)
+        .fullScreenCover(item: $postAuthenticationFlow) { presentation in
+            PostAuthenticationFlowView(
+                requiresProfileCompletion: presentation.requiresProfileCompletion
+            ) {
+                postAuthenticationFlow = nil
+                Task { await contactService.requestAccessIfNeeded() }
+            }
+            .environment(purchaseStore)
+        }
         .task {
             session.start()
             await purchaseStore.start()
@@ -89,6 +114,11 @@ struct AppRootView: View {
         nil
 #endif
     }
+}
+
+private struct PostAuthenticationPresentation: Identifiable {
+    let id = UUID()
+    let requiresProfileCompletion: Bool
 }
 
 private struct UITestShowcaseView: View {

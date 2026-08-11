@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct HomeFlowView: View {
+    @Environment(ContactService.self) private var contactService
+    @Environment(RecentLookupStore.self) private var recentLookupStore
     @State private var path: [HomeRoute] = []
 
     var body: some View {
@@ -21,6 +23,9 @@ struct HomeFlowView: View {
         switch route {
         case let .lookup(number):
             LookupProgressView(number: number) { owner in
+                Task {
+                    await recentLookupStore.record(owner: owner, contacts: contactService)
+                }
                 path.append(.result(owner))
             }
         case let .result(owner):
@@ -42,4 +47,3 @@ enum HomeRoute: Hashable {
     case comments
     case premium
 }
-

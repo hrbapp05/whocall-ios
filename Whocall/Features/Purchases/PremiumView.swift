@@ -4,6 +4,18 @@ struct PremiumView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PurchaseStore.self) private var purchaseStore
     @State private var selectedPlan = 1
+    @State private var showsCloseButton = false
+
+    private let closeDelayMilliseconds: Int
+    private let onClose: (() -> Void)?
+
+    init(
+        closeDelayMilliseconds: Int = 0,
+        onClose: (() -> Void)? = nil
+    ) {
+        self.closeDelayMilliseconds = closeDelayMilliseconds
+        self.onClose = onClose
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -54,8 +66,17 @@ struct PremiumView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button { dismiss() } label: { Image(systemName: "xmark") }
+                if showsCloseButton {
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .frame(width: 36, height: 36)
+                            .background(.white.opacity(0.92), in: .circle)
+                    }
                     .tint(.primary)
+                    .transition(.scale(scale: 0.25).combined(with: .opacity))
+                    .accessibilityLabel("Premium ekranını kapat")
+                }
             }
             ToolbarItem(placement: .principal) {
                 Image("WhoCallLogo").resizable().scaledToFit().frame(width: 98, height: 20)
@@ -95,6 +116,24 @@ struct PremiumView: View {
             Button("Tamam") { purchaseStore.clearAlert() }
         } message: {
             Text(purchaseStore.alertMessage ?? "")
+        }
+        .interactiveDismissDisabled(!showsCloseButton)
+        .task {
+            guard !showsCloseButton else { return }
+            if closeDelayMilliseconds > 0 {
+                try? await Task.sleep(for: .milliseconds(closeDelayMilliseconds))
+            }
+            withAnimation(.spring(duration: 0.42, bounce: 0.28)) {
+                showsCloseButton = true
+            }
+        }
+    }
+
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
         }
     }
 
