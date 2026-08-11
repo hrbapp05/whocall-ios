@@ -13,7 +13,9 @@ let package = Package(
     targets: [
         .target(
             name: "Whocall",
-            path: "Whocall/Core/Networking"
+            path: "Whocall/Core",
+            exclude: ["DesignSystem", "Models"],
+            sources: ["Networking", "Auth"]
         ),
         .testTarget(
             name: "WhocallTests",

@@ -5,7 +5,7 @@ struct PhoneLookupResponse: Decodable, Equatable, Sendable {
     let data: PhoneOwner
 }
 
-struct PhoneOwner: Decodable, Equatable, Sendable {
+struct PhoneOwner: Decodable, Equatable, Hashable, Sendable {
     let phoneNumber: String
     let displayName: String
     let firstName: String
@@ -35,4 +35,3 @@ enum APIErrorCode: String, Decodable, Sendable {
     case serviceUnavailable = "SERVICE_UNAVAILABLE"
     case internalError = "INTERNAL_ERROR"
 }
-

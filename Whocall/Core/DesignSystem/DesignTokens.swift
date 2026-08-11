@@ -20,6 +20,9 @@ enum DesignTokens {
         static let secondary = Color(uiColor: .secondaryLabel)
         static let button = Color(uiColor: .label)
         static let buttonLabel = Color(uiColor: .systemBackground)
+        static let brandBlue = Color(red: 14 / 255, green: 138 / 255, blue: 252 / 255)
+        static let mint = Color(red: 194 / 255, green: 244 / 255, blue: 236 / 255)
+        static let card = Color(uiColor: .secondarySystemBackground)
+        static let success = Color(red: 21 / 255, green: 184 / 255, blue: 65 / 255)
     }
 }
-
