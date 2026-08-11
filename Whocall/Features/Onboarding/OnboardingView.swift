@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct OnboardingView: View {
+    private let referenceSize = CGSize(width: 402, height: 874)
+
     let onComplete: () -> Void
     @State private var selection: OnboardingPage
 
@@ -11,45 +13,58 @@ struct OnboardingView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            VStack(spacing: 0) {
-                Image("WhoCallLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 124, height: 26)
-                    .padding(.top, 20)
+            let scale = min(
+                proxy.size.width / referenceSize.width,
+                proxy.size.height / referenceSize.height
+            )
 
+            ZStack {
                 TabView(selection: $selection) {
                     ForEach(OnboardingPage.allCases) { page in
-                        pageContent(page)
+                        pageCanvas(page)
                             .tag(page)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: min(650, proxy.size.height * 0.74))
 
                 Button("Devam Et") {
                     advance()
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                .padding(.horizontal, DesignTokens.Spacing.large)
-                .padding(.bottom, max(proxy.safeAreaInsets.bottom + 6, 14))
+                .frame(width: 362, height: 55)
+                .position(x: 201, y: 806.5)
+                .figmaEntrance(delay: 0.30, distance: 14)
                 .accessibilityIdentifier("onboarding.continue")
             }
+            .frame(width: referenceSize.width, height: referenceSize.height)
+            .scaleEffect(scale)
+            .frame(width: proxy.size.width, height: proxy.size.height)
             .background(DesignTokens.ColorToken.background)
-            .ignoresSafeArea(edges: .bottom)
         }
+        .ignoresSafeArea()
+        .toolbar(.hidden, for: .navigationBar)
     }
 
-    private func pageContent(_ page: OnboardingPage) -> some View {
-        VStack(spacing: 0) {
+    private func pageCanvas(_ page: OnboardingPage) -> some View {
+        ZStack {
+            DesignTokens.ColorToken.background
+
             OnboardingHero(page: page)
-                .frame(maxHeight: .infinity)
+
+            Image("WhoCallLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 124, height: 26)
+                .position(x: 201, y: 93)
+                .figmaEntrance(delay: 0.02, distance: 8)
 
             Text(page.title)
                 .font(.system(size: 35, weight: .bold))
                 .multilineTextAlignment(.center)
                 .lineSpacing(-4)
                 .foregroundStyle(DesignTokens.ColorToken.primary)
+                .frame(width: 362, height: 84, alignment: .center)
+                .position(x: 201, y: 660)
                 .figmaEntrance(delay: 0.16, distance: 12)
 
             Text(page.message)
@@ -57,10 +72,12 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(DesignTokens.ColorToken.secondary)
                 .lineSpacing(2)
-                .padding(.horizontal, 26)
-                .padding(.top, 14)
+                .frame(width: 350, height: 50, alignment: .center)
+                .position(x: 201, y: 738)
                 .figmaEntrance(delay: 0.24, distance: 10)
         }
+        .frame(width: referenceSize.width, height: referenceSize.height)
+        .clipped()
     }
 
     private func advance() {

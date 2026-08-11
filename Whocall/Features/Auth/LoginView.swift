@@ -49,10 +49,8 @@ struct LoginView: View {
         ZStack {
             Image("LoginAppIcon")
                 .resizable()
-                .scaledToFill()
-                .frame(width: 123, height: 122)
-                .clipShape(.rect(cornerRadius: 28))
-                .shadow(color: .black.opacity(0.15), radius: 28, y: 14)
+                .scaledToFit()
+                .frame(width: 267, height: 266)
                 .figmaEntrance(delay: 0.08, distance: 0)
                 .gentleFloat(distance: 5, duration: 2.4)
 

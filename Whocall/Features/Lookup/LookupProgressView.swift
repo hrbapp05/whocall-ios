@@ -26,6 +26,8 @@ struct LookupProgressView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            customHeader
+
             HStack(spacing: 8) {
                 Image("TurkeyFlag").resizable().frame(width: 18, height: 18)
                 Text(displayNumber)
@@ -59,21 +61,35 @@ struct LookupProgressView: View {
         }
         .background(DesignTokens.ColorToken.brandBlue.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
-        .toolbarBackground(DesignTokens.ColorToken.brandBlue, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { dismiss() } label: { Image(systemName: "chevron.left") }
-                    .tint(.white)
-                    .foregroundStyle(.black)
-            }
-            ToolbarItem(placement: .principal) {
-                Text("Sorgulanıyor").font(.headline).foregroundStyle(.white)
-            }
-            ToolbarItem(placement: .topBarTrailing) { ToolbarCreditBadge() }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .task { await beginLookup() }
+    }
+
+    private var customHeader: some View {
+        HStack {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .frame(width: 36, height: 36)
+                    .background(.white, in: .circle)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Text("Sorgulanıyor")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            Spacer()
+
+            ToolbarCreditBadge()
+                .background(.white, in: .capsule)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .frame(height: 52)
     }
 
     private var displayNumber: String {

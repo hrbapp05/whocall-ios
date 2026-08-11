@@ -4,81 +4,126 @@ struct OnboardingHero: View {
     let page: OnboardingPage
 
     var body: some View {
-        ZStack(alignment: .center) {
-            if page == .scan {
-                Circle()
-                    .fill(DesignTokens.ColorToken.brandBlue.opacity(0.045))
-                    .overlay(Circle().stroke(DesignTokens.ColorToken.brandBlue.opacity(0.20), lineWidth: 1))
-                    .frame(width: 344, height: 344)
-                    .offset(y: -22)
-                    .figmaEntrance(delay: 0.05, distance: 0)
-            }
-
-            if page == .details {
-                Image("CreditHero")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 390, height: 390)
-                    .offset(y: -56)
-                    .gentleFloat(distance: 5, duration: 2.6)
-            }
+        ZStack {
+            decorativeBackground
+                .zIndex(0)
 
             Image(page.mockupAsset)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 267)
-                .offset(y: 76)
+                .position(x: 201, y: 456.5)
                 .shadow(color: .black.opacity(0.16), radius: 8, y: 5)
                 .figmaEntrance(delay: 0.02, distance: 22)
+                .zIndex(1)
 
-            if page == .unknownNumbers {
-                sticker("IntroStickerLove", size: 82, x: -118, y: -122, rotation: -11, delay: 0)
-                sticker("IntroStickerLaugh", size: 86, x: 132, y: -42, rotation: 12, delay: 0.25)
-                sticker("IntroStickerCurly", size: 84, x: -128, y: 70, rotation: -16, delay: 0.5)
-                recentCard
-                    .offset(y: 145)
-                    .rotationEffect(.degrees(2.1))
-                    .figmaEntrance(delay: 0.22, distance: 24)
-                    .gentleFloat(distance: 3, duration: 2.5, delay: 0.3)
-                    .zIndex(3)
-            } else if page == .scan {
-                scannerCard
-                    .offset(y: 129)
-                    .figmaEntrance(delay: 0.22, distance: 20)
-                    .zIndex(3)
-            } else {
-                detailCard
-                    .offset(y: 123)
-                    .figmaEntrance(delay: 0.2, distance: 24)
-                    .zIndex(3)
+            VStack(spacing: 0) {
+                LinearGradient(
+                    colors: [.clear, .white.opacity(0.78), .white],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 210)
+
+                Color.white
             }
-
-            LinearGradient(
-                colors: [.clear, .white.opacity(0.82), .white],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 180)
-            .frame(maxHeight: .infinity, alignment: .bottom)
+            .frame(width: 402, height: 431)
+            .position(x: 201, y: 658.5)
             .allowsHitTesting(false)
-            .zIndex(1)
+            .zIndex(2)
+
+            foregroundContent
+                .zIndex(3)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: 402, height: 874)
         .clipped()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(page.title.replacingOccurrences(of: "\n", with: " ")))
     }
 
-    private func sticker(_ name: String, size: CGFloat, x: CGFloat, y: CGFloat, rotation: Double, delay: Double) -> some View {
+    @ViewBuilder
+    private var decorativeBackground: some View {
+        switch page {
+        case .unknownNumbers:
+            EmptyView()
+        case .scan:
+            Circle()
+                .fill(DesignTokens.ColorToken.brandBlue.opacity(0.045))
+                .overlay(Circle().stroke(DesignTokens.ColorToken.brandBlue.opacity(0.20), lineWidth: 1))
+                .frame(width: 344, height: 344)
+                .position(x: 201, y: 301)
+                .figmaEntrance(delay: 0.05, distance: 0)
+        case .details:
+            Image("Intro3Decor")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 394, height: 394)
+                .position(x: 205, y: 280)
+                .figmaEntrance(delay: 0.05, distance: 0)
+                .gentleFloat(distance: 3, duration: 2.8)
+        }
+    }
+
+    @ViewBuilder
+    private var foregroundContent: some View {
+        switch page {
+        case .unknownNumbers:
+            sticker(
+                "IntroStickerCurly",
+                size: 82,
+                x: 88,
+                y: 175,
+                rotation: -11,
+                delay: 0
+            )
+            sticker(
+                "IntroStickerLove",
+                size: 86,
+                x: 330,
+                y: 273,
+                rotation: 12,
+                delay: 0.25
+            )
+            sticker(
+                "IntroStickerLaugh",
+                size: 84,
+                x: 64,
+                y: 371,
+                rotation: -16,
+                delay: 0.5
+            )
+            recentCard
+                .position(x: 201, y: 501.5)
+                .rotationEffect(.degrees(2.1))
+                .figmaEntrance(delay: 0.22, distance: 24)
+                .gentleFloat(distance: 3, duration: 2.5, delay: 0.3)
+        case .scan:
+            scannerCard
+                .position(x: 201, y: 518)
+                .figmaEntrance(delay: 0.22, distance: 20)
+        case .details:
+            detailCard
+                .position(x: 201, y: 455)
+                .figmaEntrance(delay: 0.20, distance: 24)
+        }
+    }
+
+    private func sticker(
+        _ name: String,
+        size: CGFloat,
+        x: CGFloat,
+        y: CGFloat,
+        rotation: Double,
+        delay: Double
+    ) -> some View {
         Image(name)
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
             .rotationEffect(.degrees(rotation))
-            .offset(x: x, y: y)
+            .position(x: x, y: y)
             .gentleFloat(distance: 5, duration: 2.1 + delay, delay: delay)
             .figmaEntrance(delay: 0.08 + delay / 3, distance: 12)
-            .zIndex(3)
     }
 
     private var recentCard: some View {
