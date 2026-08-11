@@ -18,6 +18,7 @@ Date: 2026-08-11
 - API contract tests: 3 passed, 0 failed.
 - Visual smoke test: app installed and launched on iPhone 17 Pro simulator; first onboarding screen captured to `outputs/whocall-onboarding.png`.
 
-## Next slice
+## Continuation
 
-Inspect and implement the Figma `Login`, `Telefon Gir`, and `Otp` nodes, then establish credential-free Firebase Auth interfaces before adding the Firebase SDK/configuration.
+The planned authentication and full application slice is completed in
+`MILESTONE_2_REPORT.md`.
