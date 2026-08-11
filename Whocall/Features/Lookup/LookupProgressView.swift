@@ -6,11 +6,11 @@ import SwiftUI
 final class LookupModel {
     var phase = 0
     var errorMessage: String?
-    private let client = WhoCallAPIClient()
+    private let lookupService = PhoneLookupService()
 
     func lookup(number: String) async -> PhoneOwner? {
         do {
-            return try await client.lookup(number: number)
+            return try await lookupService.lookup(number: number)
         } catch {
             errorMessage = "Sorgu tamamlanamadı. API anahtarının yerel build ayarına eklendiğini kontrol edin."
             return nil

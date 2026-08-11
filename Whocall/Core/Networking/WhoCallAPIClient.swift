@@ -54,3 +54,23 @@ struct WhoCallAPIClient: Sendable {
     }
 }
 
+@MainActor
+struct PhoneLookupService {
+    let directory: any VerifiedNumberDirectoryServicing
+    let apiClient: WhoCallAPIClient
+
+    init(
+        directory: any VerifiedNumberDirectoryServicing = VerifiedNumberDirectoryFactory.live(),
+        apiClient: WhoCallAPIClient = WhoCallAPIClient()
+    ) {
+        self.directory = directory
+        self.apiClient = apiClient
+    }
+
+    func lookup(number: String) async throws -> PhoneOwner {
+        if let verifiedOwner = try? await directory.lookup(number: number) {
+            return verifiedOwner
+        }
+        return try await apiClient.lookup(number: number)
+    }
+}

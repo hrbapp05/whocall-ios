@@ -99,6 +99,7 @@ struct AppRootView: View {
         .task {
             session.start()
             await purchaseStore.start()
+            await PendingVerifiedProfileStore.retryIfNeeded()
         }
         .preferredColorScheme(.light)
     }
