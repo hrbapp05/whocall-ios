@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The verified directory is reachable only through authenticated callable
+    // functions. Admin SDK calls bypass rules; mobile clients cannot enumerate it.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

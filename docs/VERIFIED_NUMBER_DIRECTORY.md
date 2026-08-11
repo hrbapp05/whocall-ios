@@ -46,6 +46,28 @@ Mobil uygulamanın Firestore koleksiyonunu doğrudan taramasına izin verilmemel
 Cloud Function veya mevcut backend içinde sınırlı bir lookup endpoint'i; Firebase Auth,
 App Check, rate limit ve abuse kontrolleriyle korunmalıdır.
 
+## Uygulanan sözleşme
+
+- `publishVerifiedProfile`: Telefon numarasını request body'den kabul etmez. Yalnız Firebase
+  Auth token'ındaki `phone_number` claim'ini kullanır; zorunlu ad ve soyadı doğrular.
+- `lookupVerifiedProfile`: Firebase oturumu ve doğrulanmış telefon claim'i ister. Dakikada
+  kullanıcı başına 20 sorguyla sınırlandırılır; eşleşme yoksa iOS mevcut WhoCall API'ye düşer.
+- `unpublishVerifiedProfile`: Yalnız oturum sahibinin kendi doğrulanmış numarasını gizler.
+- Firestore kuralları mobil client'ın tüm doğrudan okuma/yazmasını reddeder.
+- Numara ham veya düz hash olarak tutulmaz; yalnız Functions secret'ı ile HMAC-SHA256 saklanır.
+
+Cloud Functions `europe-west1` bölgesinde çalışır. Deploy öncesi secret oluşturulmalıdır:
+
+```sh
+firebase functions:secrets:set PHONE_DIRECTORY_HMAC_KEY
+firebase deploy --only functions:verified-number-directory,firestore:rules
+```
+
+App Check, ilk TestFlight doğrulamasından sonra App Attest production anahtarı tanımlanarak
+zorunlu hale getirilmelidir. Bu sürümde Firebase Auth + doğrulanmış telefon claim'i + UID bazlı
+rate limit aktiftir; App Check kapalıdır ki eksik App Attest kurulumu gerçek kullanıcıları
+kilitlemesin.
+
 ## Apple ile giriş ve zorunlu isim
 
 Sign in with Apple isteği `.fullName` scope'unu istemelidir. Apple isim bilgisini yalnız ilk
