@@ -29,3 +29,6 @@ No Firebase credentials are included. The committed project does not contain an 
 
 See `docs/MILESTONE_2_REPORT.md` for the current handoff and explicit production
 integration boundaries.
+
+The subsequent pixel-fidelity and motion correction pass is documented in
+`docs/MILESTONE_3_FIGMA_FIDELITY.md`.
