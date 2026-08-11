@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PremiumView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(PurchaseStore.self) private var purchaseStore
     @State private var selectedPlan = 1
 
     var body: some View {
@@ -29,8 +30,20 @@ struct PremiumView: View {
                     .padding(.top, 22)
 
                 VStack(spacing: 16) {
-                    plan(0, "Haftalık Premium", subtitle: "Haftalık Tam Erişim", price: "499,99", suffix: "/hafta")
-                    plan(1, "Aylık Premium", subtitle: "Aylık Tam Erişim", price: "999,99", suffix: "/ay")
+                    plan(
+                        0,
+                        "Haftalık Premium",
+                        subtitle: "Haftalık Tam Erişim",
+                        price: purchaseStore.localizedPrice(for: .premiumWeekly, fallback: "499,99"),
+                        suffix: "/hafta"
+                    )
+                    plan(
+                        1,
+                        "Aylık Premium",
+                        subtitle: "Aylık Tam Erişim",
+                        price: purchaseStore.localizedPrice(for: .premiumMonthly, fallback: "999,99"),
+                        suffix: "/ay"
+                    )
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 24)
@@ -51,14 +64,25 @@ struct PremiumView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 12) {
-                Button("Premium’a Geç") { }
-                    .buttonStyle(PrimaryButtonStyle())
+                Button {
+                    Task { await purchaseStore.purchase(selectedProductID) }
+                } label: {
+                    if purchaseStore.isPurchasing {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Premium’a Geç")
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(purchaseStore.isPurchasing)
                 HStack(spacing: 12) {
                     Link("Abonelik Koşulları", destination: URL(string: "https://whocallapp.online")!)
                     Text("•")
                     Link("Gizlilik Politikası", destination: URL(string: "https://whocallapp.online")!)
                     Text("•")
-                    Button("Geri Yükle") { }
+                    Button("Geri Yükle") {
+                        Task { await purchaseStore.restorePurchases() }
+                    }
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -67,6 +91,22 @@ struct PremiumView: View {
             .padding(.top, 10)
             .background(.ultraThinMaterial)
         }
+        .alert("Satın Alma", isPresented: purchaseAlertPresented) {
+            Button("Tamam") { purchaseStore.clearAlert() }
+        } message: {
+            Text(purchaseStore.alertMessage ?? "")
+        }
+    }
+
+    private var selectedProductID: RevenueCatProductID {
+        selectedPlan == 0 ? .premiumWeekly : .premiumMonthly
+    }
+
+    private var purchaseAlertPresented: Binding<Bool> {
+        Binding(
+            get: { purchaseStore.alertMessage != nil },
+            set: { if !$0 { purchaseStore.clearAlert() } }
+        )
     }
 
     private var premiumHero: some View {

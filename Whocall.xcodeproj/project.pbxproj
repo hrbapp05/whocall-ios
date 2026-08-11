@@ -5,6 +5,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B000000000000000000000A0 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000A2 /* RevenueCat */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B00000000000000000000071 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -34,7 +38,7 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		B00000000000000000000020 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		B00000000000000000000020 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000A0 /* RevenueCat in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
 		B00000000000000000000021 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
@@ -72,7 +76,7 @@
 			dependencies = ();
 			fileSystemSynchronizedGroups = (B00000000000000000000010 /* Whocall */);
 			name = Whocall;
-			packageProductDependencies = ();
+			packageProductDependencies = (B000000000000000000000A2 /* RevenueCat */,);
 			productName = Whocall;
 			productReference = B00000000000000000000001 /* Whocall.app */;
 			productType = "com.apple.product-type.application";
@@ -116,6 +120,7 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B00000000000000000000031 /* Products */;
+			packageReferences = (B000000000000000000000A1 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (B00000000000000000000040 /* Whocall */, B00000000000000000000041 /* WhocallTests */);
@@ -183,6 +188,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = WhoCall;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_REVENUECAT_PUBLIC_SDK_KEY = "$(REVENUECAT_PUBLIC_SDK_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -208,6 +214,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = WhoCall;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_REVENUECAT_PUBLIC_SDK_KEY = "$(REVENUECAT_PUBLIC_SDK_KEY)";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -262,6 +269,25 @@
 		B00000000000000000000061 = {isa = XCConfigurationList; buildConfigurations = (B00000000000000000000094, B00000000000000000000095); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		B00000000000000000000062 = {isa = XCConfigurationList; buildConfigurations = (B00000000000000000000090, B00000000000000000000091); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B000000000000000000000A1 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = exactVersion;
+				version = 5.81.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B000000000000000000000A2 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B000000000000000000000A1 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B00000000000000000000080 /* Project object */;
 }

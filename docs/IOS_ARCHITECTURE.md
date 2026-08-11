@@ -37,7 +37,10 @@ service is only a deterministic local seam for UI work and tests.
 
 ### Purchases
 
-Premium and credit screens reproduce the Figma UI. StoreKit product identifiers,
-server receipt validation, and purchase restoration require the product catalog
-and backend policy and therefore remain explicit integration work rather than
-invented behavior.
+Premium and credit screens keep the Figma UI and use RevenueCat 5.81.0 for
+localized products, purchase, customer info, and restore. The two subscription
+products map to the `premium` entitlement; 3/5/10 credit products are
+consumables and update the local balance only after a successful transaction.
+The SDK public key is injected through `REVENUECAT_PUBLIC_SDK_KEY` and is never
+committed. RevenueCat dashboard app/product/offering creation still requires an
+account role that can add app configurations.

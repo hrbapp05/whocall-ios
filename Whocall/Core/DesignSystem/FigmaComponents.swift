@@ -1,7 +1,12 @@
 import SwiftUI
 
 struct CreditBadge: View {
-    var amount = 5
+    var amount: Int?
+    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 5
+
+    init(amount: Int? = nil) {
+        self.amount = amount
+    }
 
     var body: some View {
         HStack(spacing: 5) {
@@ -9,7 +14,7 @@ struct CreditBadge: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 14, height: 14)
-            Text("\(amount)")
+            Text("\(displayAmount)")
                 .font(.system(size: 14, weight: .semibold))
         }
         .foregroundStyle(.black)
@@ -18,23 +23,32 @@ struct CreditBadge: View {
         .background(.white, in: .capsule)
         .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(amount) kredi")
+        .accessibilityLabel("\(displayAmount) kredi")
     }
+
+    private var displayAmount: Int { amount ?? storedAmount }
 }
 
 struct ToolbarCreditBadge: View {
-    var amount = 5
+    var amount: Int?
+    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 5
+
+    init(amount: Int? = nil) {
+        self.amount = amount
+    }
 
     var body: some View {
         HStack(spacing: 5) {
             Image("CreditGlyph").resizable().scaledToFit().frame(width: 14, height: 14)
-            Text("\(amount)").font(.system(size: 14, weight: .semibold))
+            Text("\(displayAmount)").font(.system(size: 14, weight: .semibold))
         }
         .foregroundStyle(.black)
         .frame(width: 48, height: 30)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(amount) kredi")
+        .accessibilityLabel("\(displayAmount) kredi")
     }
+
+    private var displayAmount: Int { amount ?? storedAmount }
 }
 
 struct FigmaTag: View {

@@ -9,6 +9,7 @@ iOS 17+ SwiftUI client for WhoCall.
   community comments, history, premium, credits, and profile flows
 - Shared semantic design system and exact exported Figma image assets
 - Typed WhoCall API v1 models, error envelopes, and request client
+- RevenueCat SDK purchase/restore flow backed by the App Store product catalog
 - Credential-free authentication seam for later Firebase Auth wiring
 - API credentials supplied outside source control
 
@@ -16,7 +17,9 @@ iOS 17+ SwiftUI client for WhoCall.
 
 1. Open `Whocall.xcodeproj` in Xcode.
 2. Copy `Config/Secrets.xcconfig.example` to `Config/Secrets.xcconfig` when a local API key is available.
-3. Add that file to the target configuration in Xcode or inject `WHOCALL_API_KEY` through your build environment.
+3. Add that file to the target configuration in Xcode or inject
+   `WHOCALL_API_KEY` and `REVENUECAT_PUBLIC_SDK_KEY` through your build
+   environment.
 
 No Firebase credentials are included. The committed project does not contain an API key, phone dump, backend data, or PII.
 
@@ -27,8 +30,10 @@ No Firebase credentials are included. The committed project does not contain an 
   development authentication boundary.
 - Visual simulator captures are kept out of source control under `outputs/`.
 
-See `docs/MILESTONE_2_REPORT.md` for the current handoff and explicit production
+See `Docs/MILESTONE_2_REPORT.md` for the current handoff and explicit production
 integration boundaries.
 
 The subsequent pixel-fidelity and motion correction pass is documented in
-`docs/MILESTONE_3_FIGMA_FIDELITY.md`.
+`Docs/MILESTONE_3_FIGMA_FIDELITY.md`. The App Store catalog, RevenueCat wiring,
+and latest Page 1 corrections are documented in
+`Docs/MILESTONE_4_STORE_AND_FIGMA_FIXES.md`.

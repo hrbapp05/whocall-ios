@@ -18,6 +18,7 @@ final class AppSession {
 struct AppRootView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var session = AppSession()
+    @State private var purchaseStore = PurchaseStore()
 
     private var skipsOnboardingForUITest: Bool {
 #if DEBUG
@@ -39,6 +40,8 @@ struct AppRootView: View {
                 AppShellView { session.isAuthenticated = false }
             }
         }
+        .environment(purchaseStore)
+        .task { await purchaseStore.start() }
         .preferredColorScheme(.light)
     }
 

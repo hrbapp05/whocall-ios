@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CreditsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(PurchaseStore.self) private var purchaseStore
     @State private var selected = 5
 
     var body: some View {
@@ -27,9 +28,9 @@ struct CreditsView: View {
                     .padding(.top, 6)
 
                 VStack(spacing: 16) {
-                    creditOption(3, price: "199,99")
-                    creditOption(5, price: "249,99")
-                    creditOption(10, price: "499,99")
+                    creditOption(3, price: purchaseStore.localizedPrice(for: .credits3, fallback: "199,99"))
+                    creditOption(5, price: purchaseStore.localizedPrice(for: .credits5, fallback: "249,99"))
+                    creditOption(10, price: purchaseStore.localizedPrice(for: .credits10, fallback: "499,99"))
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 32)
@@ -49,12 +50,41 @@ struct CreditsView: View {
             ToolbarItem(placement: .topBarTrailing) { ToolbarCreditBadge() }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button("Kredi Satın Al") { }
+            Button {
+                Task { await purchaseStore.purchase(selectedProductID) }
+            } label: {
+                if purchaseStore.isPurchasing {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("Kredi Satın Al")
+                }
+            }
                 .buttonStyle(PrimaryButtonStyle())
+                .disabled(purchaseStore.isPurchasing)
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
                 .background(.ultraThinMaterial)
         }
+        .alert("Satın Alma", isPresented: purchaseAlertPresented) {
+            Button("Tamam") { purchaseStore.clearAlert() }
+        } message: {
+            Text(purchaseStore.alertMessage ?? "")
+        }
+    }
+
+    private var selectedProductID: RevenueCatProductID {
+        switch selected {
+        case 3: .credits3
+        case 10: .credits10
+        default: .credits5
+        }
+    }
+
+    private var purchaseAlertPresented: Binding<Bool> {
+        Binding(
+            get: { purchaseStore.alertMessage != nil },
+            set: { if !$0 { purchaseStore.clearAlert() } }
+        )
     }
 
     private var creditHero: some View {
