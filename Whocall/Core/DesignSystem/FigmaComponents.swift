@@ -64,6 +64,23 @@ struct FigmaTag: View {
     }
 }
 
+struct FigmaBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.black)
+                .frame(width: 36, height: 36)
+                .background(.white, in: .circle)
+                .shadow(color: .black.opacity(0.07), radius: 18, y: 7)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Geri")
+    }
+}
+
 private struct EntranceMotion: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let delay: Double
@@ -106,6 +123,28 @@ private struct FloatingMotion: ViewModifier {
     }
 }
 
+private struct PopEntranceMotion: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let delay: Double
+    let initialScale: CGFloat
+    @State private var isVisible = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .scaleEffect(isVisible || reduceMotion ? 1 : initialScale)
+            .onAppear {
+                guard !reduceMotion else {
+                    isVisible = true
+                    return
+                }
+                withAnimation(.spring(duration: 0.78, bounce: 0.43).delay(delay)) {
+                    isVisible = true
+                }
+            }
+    }
+}
+
 extension View {
     func figmaEntrance(delay: Double = 0, distance: CGFloat = 18) -> some View {
         modifier(EntranceMotion(delay: delay, distance: distance))
@@ -113,5 +152,9 @@ extension View {
 
     func gentleFloat(distance: CGFloat = 4, duration: Double = 2.2, delay: Double = 0) -> some View {
         modifier(FloatingMotion(distance: distance, duration: duration, delay: delay))
+    }
+
+    func popEntrance(delay: Double = 0, initialScale: CGFloat = 0.04) -> some View {
+        modifier(PopEntranceMotion(delay: delay, initialScale: initialScale))
     }
 }

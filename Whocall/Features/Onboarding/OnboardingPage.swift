@@ -28,9 +28,16 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
 
     var mockupAsset: String {
         switch self {
-        case .unknownNumbers: "Intro1Mockup"
-        case .scan: "Intro2Mockup"
-        case .details: "Intro3Mockup"
+        case .unknownNumbers: "Intro1Device"
+        case .scan: "Intro2Device"
+        case .details: "Intro3Device"
+        }
+    }
+
+    var messageHeight: CGFloat {
+        switch self {
+        case .scan: 66
+        case .unknownNumbers, .details: 44
         }
     }
 }
