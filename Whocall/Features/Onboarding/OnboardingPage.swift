@@ -20,18 +20,17 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
         case .unknownNumbers:
             "Seni arayan numaraları saniyeler içinde sorgula, kimin aradığını hızlıca öğren."
         case .scan:
-            "Topluluk kayıtları ve veritabanı eşleşmeleriyle numara hakkında hızlı sonuç al."
+            "Topluluk Kayıtları Ve Veritabanı Eşleşmeleriyle Numara Hakkında Hızlı Sonuç Al."
         case .details:
-            "Etiketleri, topluluk yorumlarını ve güven seviyesini tek ekranda incele."
+            "Etiketleri, Topluluk Yorumlarını Ve Güven Seviyesini Tek Ekranda İncele."
         }
     }
 
-    var heroAsset: String {
+    var mockupAsset: String {
         switch self {
-        case .unknownNumbers: "Intro1Hero"
-        case .scan: "Intro2Hero"
-        case .details: "Intro3Hero"
+        case .unknownNumbers: "Intro1Mockup"
+        case .scan: "Intro2Mockup"
+        case .details: "Intro3Mockup"
         }
     }
 }
-

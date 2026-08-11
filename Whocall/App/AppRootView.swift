@@ -29,7 +29,9 @@ struct AppRootView: View {
 
     var body: some View {
         Group {
-            if !hasCompletedOnboarding && !skipsOnboardingForUITest {
+            if let screen = uiTestScreen {
+                UITestShowcaseView(screen: screen)
+            } else if !hasCompletedOnboarding && !skipsOnboardingForUITest {
                 OnboardingView { hasCompletedOnboarding = true }
             } else if !session.isAuthenticated {
                 AuthFlowView { session.isAuthenticated = true }
@@ -38,6 +40,38 @@ struct AppRootView: View {
             }
         }
         .preferredColorScheme(.light)
+    }
+
+    private var uiTestScreen: String? {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-uiTestScreen"), arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return arguments[index + 1]
+#else
+        nil
+#endif
+    }
+}
+
+private struct UITestShowcaseView: View {
+    let screen: String
+
+    var body: some View {
+        NavigationStack {
+            switch screen {
+            case "onboarding": OnboardingView(onComplete: {})
+            case "onboarding2": OnboardingView(initialPage: .scan, onComplete: {})
+            case "onboarding3": OnboardingView(initialPage: .details, onComplete: {})
+            case "login": LoginView()
+            case "premium": PremiumView()
+            case "credits": CreditsView()
+            case "scanning": LookupProgressView(number: "5065055555", onResult: { _ in })
+            case "person": PersonDetailView(name: "Ahmet S.", number: "905055055050", onComments: {})
+            default: HomeView(onSearch: { _ in }, onRecord: { _ in }, onPremium: {})
+            }
+        }
     }
 }
 

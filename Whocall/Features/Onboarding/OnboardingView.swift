@@ -2,7 +2,12 @@ import SwiftUI
 
 struct OnboardingView: View {
     let onComplete: () -> Void
-    @State private var selection = OnboardingPage.unknownNumbers
+    @State private var selection: OnboardingPage
+
+    init(initialPage: OnboardingPage = .unknownNumbers, onComplete: @escaping () -> Void) {
+        self.onComplete = onComplete
+        _selection = State(initialValue: initialPage)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -11,7 +16,7 @@ struct OnboardingView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 124, height: 26)
-                    .padding(.top, max(proxy.safeAreaInsets.top + 20, 48))
+                    .padding(.top, 20)
 
                 TabView(selection: $selection) {
                     ForEach(OnboardingPage.allCases) { page in
@@ -20,13 +25,14 @@ struct OnboardingView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(height: min(650, proxy.size.height * 0.74))
 
                 Button("Devam Et") {
                     advance()
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .padding(.horizontal, DesignTokens.Spacing.large)
-                .padding(.bottom, max(proxy.safeAreaInsets.bottom + 6, 20))
+                .padding(.bottom, max(proxy.safeAreaInsets.bottom + 6, 14))
                 .accessibilityIdentifier("onboarding.continue")
             }
             .background(DesignTokens.ColorToken.background)
@@ -37,24 +43,23 @@ struct OnboardingView: View {
     private func pageContent(_ page: OnboardingPage) -> some View {
         VStack(spacing: 0) {
             OnboardingHero(page: page)
-                .padding(.top, DesignTokens.Spacing.section)
-
-            Spacer(minLength: DesignTokens.Spacing.small)
+                .frame(maxHeight: .infinity)
 
             Text(page.title)
-                .font(.system(.largeTitle, design: .default, weight: .bold))
+                .font(.system(size: 35, weight: .bold))
                 .multilineTextAlignment(.center)
-                .lineSpacing(-2)
+                .lineSpacing(-4)
                 .foregroundStyle(DesignTokens.ColorToken.primary)
+                .figmaEntrance(delay: 0.16, distance: 12)
 
             Text(page.message)
-                .font(.body)
+                .font(.system(size: 16))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(DesignTokens.ColorToken.secondary)
-                .padding(.horizontal, 28)
-                .padding(.top, DesignTokens.Spacing.standard)
-
-            Spacer(minLength: DesignTokens.Spacing.large)
+                .lineSpacing(2)
+                .padding(.horizontal, 26)
+                .padding(.top, 14)
+                .figmaEntrance(delay: 0.24, distance: 10)
         }
     }
 
@@ -74,4 +79,3 @@ struct OnboardingView: View {
 #Preview {
     OnboardingView(onComplete: {})
 }
-

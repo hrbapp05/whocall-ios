@@ -13,11 +13,7 @@ struct HomeView: View {
                     Text("Hoş Geldin, Göktuğ 👋🏻")
                         .font(.headline)
                     Spacer()
-                    Label("5", systemImage: "circle.lefthalf.filled")
-                        .font(.caption.weight(.bold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(.thinMaterial, in: .capsule)
+                    CreditBadge()
                 }
 
                 searchField
@@ -25,7 +21,7 @@ struct HomeView: View {
                 Button(action: onPremium) {
                     HStack {
                         VStack(alignment: .leading) {
-                            Text("Hemen sende premium Ol!").font(.headline)
+                            Text("Hemen Sende Premium Ol!").font(.headline)
                             Text("Premium abonelik alarak sınırsız sorgulama yapabilirsin!").font(.caption)
                         }
                         Spacer()
@@ -72,4 +68,3 @@ struct HomeView: View {
         .shadow(color: .black.opacity(0.05), radius: 12, y: 4)
     }
 }
-
