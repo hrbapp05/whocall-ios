@@ -36,7 +36,7 @@ enum AuthError: LocalizedError, Equatable {
         case .expiredCode:
             "Doğrulama kodunun süresi dolmuş. Lütfen yeni kod isteyin."
         case .tooManyRequests:
-            "Güvenlik nedeniyle bu cihaz veya numara için yeni SMS istekleri geçici olarak durduruldu. Bu sınır Blaze planından bağımsızdır; lütfen bir süre bekleyin."
+            "Şu anda doğrulama kodu gönderemiyoruz. Lütfen daha sonra tekrar deneyin."
         case .networkUnavailable:
             "İnternet bağlantısı kurulamadı. Bağlantınızı kontrol edip tekrar deneyin."
         case .appVerificationFailed:

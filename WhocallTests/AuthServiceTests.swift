@@ -33,6 +33,17 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertNil(PhoneVerificationRetryPolicy.cooldown(for: .networkUnavailable))
     }
 
+    func testTooManyRequestsMessageDoesNotExposeInfrastructureDetails() {
+        let message = AuthError.tooManyRequests.localizedDescription
+
+        XCTAssertEqual(
+            message,
+            "Şu anda doğrulama kodu gönderemiyoruz. Lütfen daha sonra tekrar deneyin."
+        )
+        XCTAssertFalse(message.localizedCaseInsensitiveContains("Blaze"))
+        XCTAssertFalse(message.localizedCaseInsensitiveContains("Firebase"))
+    }
+
 #if canImport(FirebaseAuth)
     func testFirebaseAppVerificationErrorsUseActionableMessage() {
         let firebaseError = NSError(
