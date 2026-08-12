@@ -1,4 +1,3 @@
-import Link from "next/link";
 import Image from "next/image";
 import { AppStoreButton } from "./components/AppStoreButton";
 import { Reveal } from "./components/Reveal";
@@ -40,8 +39,8 @@ export default function Home() {
         <nav aria-label="Ana menü">
           <a href="#nasil-calisir">Nasıl çalışır?</a>
           <a href="#uygulama">Uygulama</a>
-          <Link href="/privacy-policy">Privacy Policy</Link>
-          <Link href="/terms-of-use">Terms of Use</Link>
+          <a href="/privacy-policy">Privacy Policy</a>
+          <a href="/terms-of-use">Terms of Use</a>
           <a href="mailto:support@levelappstuido.com">İletişim</a>
         </nav>
         <details className="mobile-menu">
@@ -49,8 +48,8 @@ export default function Home() {
           <div>
             <a href="#nasil-calisir">Nasıl çalışır?</a>
             <a href="#uygulama">Uygulama</a>
-            <Link href="/privacy-policy">Privacy Policy</Link>
-            <Link href="/terms-of-use">Terms of Use</Link>
+            <a href="/privacy-policy">Privacy Policy</a>
+            <a href="/terms-of-use">Terms of Use</a>
           </div>
         </details>
         <AppStoreButton compact />
@@ -88,8 +87,20 @@ export default function Home() {
         <div className="hero-visual" aria-label="WhoCall uygulamasından bir görünüm">
           <div className="floating-pill pill-left">Numara doğrulandı <b>✓</b></div>
           <div className="floating-pill pill-right"><b>Güvenli</b> görünüm</div>
-          <div className="hero-store-art">
-            <Image src="/assets/03-sonucu-ogren.png" alt="WhoCall numara sorgulama sonucu hazırlanıyor" width={1320} height={2868} priority sizes="(max-width: 620px) 285px, 350px" />
+          <div className="phone-mockup">
+            <span className="phone-button phone-button-action" aria-hidden="true" />
+            <span className="phone-button phone-button-volume-up" aria-hidden="true" />
+            <span className="phone-button phone-button-volume-down" aria-hidden="true" />
+            <div className="phone-screen">
+              <Image
+                src="/assets/hero-app-screen.png"
+                alt="WhoCall uygulamasında numara sorgulanıyor ekranı"
+                width={1206}
+                height={2622}
+                priority
+                sizes="(max-width: 620px) 285px, 350px"
+              />
+            </div>
           </div>
           <div className="hero-icon">
             <Image src="/assets/whocall-app-icon.png" alt="WhoCall uygulama ikonu" width={132} height={132} priority />
@@ -151,7 +162,7 @@ export default function Home() {
             Arama sonuçlarında soyadının yalnızca baş harfi gösterilir. Kendi doğrulanmış
             numaranın görünürlüğünü dilediğinde yönetebilirsin.
           </p>
-          <Link className="outline-link" href="/privacy-policy">Gizlilik yaklaşımımız</Link>
+          <a className="outline-link" href="/privacy-policy">Gizlilik yaklaşımımız</a>
         </Reveal>
       </section>
 
@@ -183,8 +194,8 @@ export default function Home() {
           </div>
           <div>
             <h3>Yasal</h3>
-            <Link href="/privacy-policy">Privacy Policy</Link>
-            <Link href="/terms-of-use">Terms of Use</Link>
+            <a href="/privacy-policy">Privacy Policy</a>
+            <a href="/terms-of-use">Terms of Use</a>
           </div>
           <div>
             <h3>İletişim</h3>

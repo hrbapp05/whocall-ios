@@ -19,8 +19,9 @@ test("landing page includes product copy and legal links", async () => {
   const html = await render("/");
   assert.match(html, /Arayan kim\?/);
   assert.match(html, /App Store/);
-  assert.match(html, /\/privacy-policy/);
-  assert.match(html, /\/terms-of-use/);
+  assert.match(html, /href="\/privacy-policy"/);
+  assert.match(html, /href="\/terms-of-use"/);
+  assert.match(html, /\/assets\/hero-app-screen\.png/);
   assert.match(html, /support@levelappstuido\.com/);
 });
 

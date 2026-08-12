@@ -1,4 +1,3 @@
-import Link from "next/link";
 import Image from "next/image";
 import type { ReactNode } from "react";
 
@@ -20,11 +19,11 @@ export function LegalPage({
   return (
     <main className="legal-shell" lang="en">
       <header className="legal-header">
-        <Link className="brand" href="/">
+        <a className="brand" href="/">
           <Image src="/assets/whocall-app-icon.png" alt="" width={38} height={38} priority />
           <span>whoCall</span>
-        </Link>
-        <Link className="legal-back" href="/">← Back to home</Link>
+        </a>
+        <a className="legal-back" href="/">← Back to home</a>
       </header>
       <section className="legal-hero">
         <div>
