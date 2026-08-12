@@ -6,6 +6,7 @@ const {getAuth} = require("firebase-admin/auth");
 const {defineSecret} = require("firebase-functions/params");
 const {HttpsError, onCall} = require("firebase-functions/v2/https");
 const {
+  communityAuthor,
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
@@ -344,17 +345,20 @@ exports.addNumberComment = onCall(callableOptions, async (request) => {
   }
   const secret = hmacKey.value();
   await enforceRateLimit(request.auth.uid, "community-comment", 8, secret);
-  const user = await getAuth().getUser(request.auth.uid);
-  const author = cleanCommunityText(user.displayName, 2, 80) || "WhoCall Kullanıcısı";
+  const author = communityAuthor(request.auth.token.name) ||
+    communityAuthor(request.data && request.data.author) || "WhoCall Kullanıcısı";
   const reference = communityReference(number, secret);
-  await reference.collection("comments").add({
+  const commentReference = reference.collection("comments").doc();
+  const batch = db.batch();
+  batch.set(commentReference, {
     uid: request.auth.uid,
     author,
     body,
     createdAt: FieldValue.serverTimestamp(),
   });
-  await reference.set({updatedAt: FieldValue.serverTimestamp()}, {merge: true});
-  return {added: true};
+  batch.set(reference, {updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  await batch.commit();
+  return {added: true, id: commentReference.id};
 });
 
 exports.addNumberTag = onCall(callableOptions, async (request) => {
@@ -400,8 +404,9 @@ exports.reportNumber = onCall(callableOptions, async (request) => {
   const reference = communityReference(number, secret);
   const reportID = keyedDigest(request.auth.uid, secret);
   const reportReference = reference.collection("reports").doc(`v1_${reportID}`);
-  await db.runTransaction(async (transaction) => {
-    const report = await transaction.get(reportReference);
+  const reportCount = await db.runTransaction(async (transaction) => {
+    const [report, community] = await transaction.getAll(reportReference, reference);
+    const currentCount = Math.max(0, Number(community.data() && community.data().reportCount || 0));
     transaction.set(reportReference, {
       uidHash: reportID,
       reason,
@@ -414,10 +419,10 @@ exports.reportNumber = onCall(callableOptions, async (request) => {
         updatedAt: FieldValue.serverTimestamp(),
       }, {merge: true});
     }
+    return report.exists ? currentCount : currentCount + 1;
   });
-  const community = await reference.get();
   return {
     reported: true,
-    reportCount: Math.max(0, Number(community.data() && community.data().reportCount || 0)),
+    reportCount,
   };
 });

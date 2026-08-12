@@ -214,13 +214,17 @@ final class PurchaseStore {
             let (transaction, customerInfo, userCancelled) = try await Purchases.shared.purchase(product: product)
             guard !userCancelled else { return false }
 
+            let balanceBeforePurchase = creditBalance
             apply(customerInfo)
             if let amount = productID.creditAmount {
                 guard let transactionID = transaction?.transactionIdentifier else {
                     alertMessage = "Kredi işlemi doğrulanamadı. Satın alım geçmişinizi yenileyip tekrar deneyin."
                     return false
                 }
-                if grantCreditsOnce(amount, transactionID: transactionID) {
+                if !hasProcessedCreditTransaction(transactionID) {
+                    _ = grantCreditsOnce(amount, transactionID: transactionID)
+                }
+                if creditBalance > balanceBeforePurchase {
                     alertMessage = "\(amount) sorgulama kredisi hesabınıza eklendi."
                 } else {
                     alertMessage = "Bu kredi işlemi daha önce hesabınıza eklenmiş."
@@ -324,6 +328,7 @@ final class PurchaseStore {
                 )
             }
             .sorted { $0.purchaseDate > $1.purchaseDate }
+        reconcileCreditHistory(creditPurchaseHistory)
     }
 
     private func switchLocalAccount(to accountID: String?) {
@@ -378,4 +383,20 @@ final class PurchaseStore {
         defaults.set(Array(processedTransactions), forKey: processedTransactionsStorageKey)
         return true
     }
+
+    private func hasProcessedCreditTransaction(_ transactionID: String) -> Bool {
+        defaults.stringArray(forKey: processedTransactionsStorageKey)?.contains(transactionID) == true
+    }
+
+    private func reconcileCreditHistory(_ records: [CreditPurchaseRecord]) {
+        for record in records {
+            _ = grantCreditsOnce(record.creditAmount, transactionID: record.id)
+        }
+    }
+
+#if DEBUG
+    func reconcileCreditHistoryForTesting(_ records: [CreditPurchaseRecord]) {
+        reconcileCreditHistory(records)
+    }
+#endif
 }

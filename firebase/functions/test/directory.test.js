@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  communityAuthor,
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
@@ -39,6 +40,12 @@ test("splits a verified display name for lazy directory publication", () => {
     lastName: "Nur Yılmaz",
   });
   assert.equal(namesFromDisplayName("Tekad"), null);
+});
+
+test("masks the community author without an Auth Admin lookup", () => {
+  assert.equal(communityAuthor("Göktuğ Solmaz"), "Göktuğ S.");
+  assert.equal(communityAuthor("Göktuğ S."), "Göktuğ S.");
+  assert.equal(communityAuthor("TekAd"), null);
 });
 
 test("builds a public lookup owner from a verified Firebase Auth user", () => {

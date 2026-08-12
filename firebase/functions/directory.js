@@ -51,6 +51,13 @@ function publicProfileFromAuthUser(user, phoneNumber) {
   };
 }
 
+function communityAuthor(value) {
+  const names = namesFromDisplayName(value);
+  if (!names) return null;
+  const surnameInitial = Array.from(names.lastName)[0];
+  return surnameInitial ? `${names.firstName} ${surnameInitial}.` : null;
+}
+
 function keyedDigest(value, secret) {
   return createHmac("sha256", secret).update(value, "utf8").digest("hex");
 }
@@ -99,6 +106,7 @@ module.exports = {
   CURRENT_PRIVACY_NOTICE_VERSION,
   CURRENT_TERMS_VERSION,
   containsBlockedCommunityLanguage,
+  communityAuthor,
   keyedDigest,
   namesFromDisplayName,
   publicProfileFromAuthUser,

@@ -23,11 +23,18 @@ struct CreditBadge: View {
         .background(.white, in: .capsule)
         .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(purchaseStore.isPremium ? "Sınırsız sorgulama" : "\(displayAmount) kredi")
+        .accessibilityLabel(presentation.accessibilityLabel)
     }
 
     private var displayAmount: String {
-        purchaseStore.isPremium ? "∞" : "\(amount ?? purchaseStore.creditBalance)"
+        presentation.text
+    }
+
+    private var presentation: CreditBadgePresentation {
+        CreditBadgePresentation(
+            isPremium: purchaseStore.isPremium,
+            creditBalance: amount ?? purchaseStore.creditBalance
+        )
     }
 }
 
@@ -47,11 +54,39 @@ struct ToolbarCreditBadge: View {
         .foregroundStyle(.black)
         .frame(width: 48, height: 30)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(purchaseStore.isPremium ? "Sınırsız sorgulama" : "\(displayAmount) kredi")
+        .accessibilityLabel(presentation.accessibilityLabel)
     }
 
     private var displayAmount: String {
-        purchaseStore.isPremium ? "∞" : "\(amount ?? purchaseStore.creditBalance)"
+        presentation.text
+    }
+
+    private var presentation: CreditBadgePresentation {
+        CreditBadgePresentation(
+            isPremium: purchaseStore.isPremium,
+            creditBalance: amount ?? purchaseStore.creditBalance
+        )
+    }
+}
+
+struct CreditBadgePresentation: Equatable, Sendable {
+    let text: String
+    let accessibilityLabel: String
+
+    init(isPremium: Bool, creditBalance: Int) {
+        let balance = max(0, creditBalance)
+        if balance > 0 {
+            text = "\(balance)"
+            accessibilityLabel = isPremium
+                ? "\(balance) kredi; Premium ile sınırsız sorgulama"
+                : "\(balance) kredi"
+        } else if isPremium {
+            text = "∞"
+            accessibilityLabel = "Premium ile sınırsız sorgulama"
+        } else {
+            text = "0"
+            accessibilityLabel = "0 kredi"
+        }
     }
 }
 

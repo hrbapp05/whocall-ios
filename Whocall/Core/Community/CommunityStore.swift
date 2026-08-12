@@ -104,6 +104,10 @@ final class CommunityStore {
     private(set) var localReportCounts: [String: Int] = [:]
     private(set) var isLoading = false
 
+#if canImport(FirebaseFunctions)
+    private let functions = Functions.functions(region: "europe-west1")
+#endif
+
     func comments(for phoneNumber: String) -> [Comment] {
         localComments[canonical(phoneNumber)] ?? []
     }
@@ -149,6 +153,14 @@ final class CommunityStore {
             throw CommunityStoreError.blockedLanguage
         }
         let safeAuthor = PersonNameFormatter.maskFullName(author)
+        let key = canonical(phoneNumber)
+        let optimisticEntry = Comment(
+            initial: String(safeAuthor.prefix(1)).uppercased(with: Locale(identifier: "tr_TR")),
+            author: safeAuthor,
+            body: cleanBody,
+            time: "Şimdi"
+        )
+        localComments[key, default: []].insert(optimisticEntry, at: 0)
 
 #if canImport(FirebaseFunctions)
         if FirebaseApp.app() != nil {
@@ -159,26 +171,12 @@ final class CommunityStore {
                     "author": safeAuthor,
                 ])
             } catch {
+                localComments[key]?.removeAll { $0.id == optimisticEntry.id }
                 throw localized(error)
             }
-            let entry = Comment(
-                initial: String(safeAuthor.prefix(1)).uppercased(with: Locale(identifier: "tr_TR")),
-                author: safeAuthor,
-                body: cleanBody,
-                time: "Şimdi"
-            )
-            localComments[canonical(phoneNumber), default: []].insert(entry, at: 0)
             return
         }
 #endif
-
-        let entry = Comment(
-            initial: String(safeAuthor.prefix(1)).uppercased(with: Locale(identifier: "tr_TR")),
-            author: safeAuthor,
-            body: cleanBody,
-            time: "Şimdi"
-        )
-        localComments[canonical(phoneNumber), default: []].insert(entry, at: 0)
     }
 
     func addTag(_ title: String, for phoneNumber: String) async throws {
@@ -189,6 +187,11 @@ final class CommunityStore {
         guard !CommunityContentModerator.containsBlockedLanguage(cleanTitle) else {
             throw CommunityStoreError.blockedLanguage
         }
+        let key = canonical(phoneNumber)
+        let alreadyExists = localTags[key, default: []].contains {
+            $0.caseInsensitiveCompare(cleanTitle) == .orderedSame
+        }
+        insertLocalTag(cleanTitle, for: phoneNumber)
 
 #if canImport(FirebaseFunctions)
         if FirebaseApp.app() != nil {
@@ -198,46 +201,43 @@ final class CommunityStore {
                     "tag": cleanTitle,
                 ])
             } catch {
+                if !alreadyExists {
+                    localTags[key]?.removeAll { $0.caseInsensitiveCompare(cleanTitle) == .orderedSame }
+                }
                 throw localized(error)
             }
-            insertLocalTag(cleanTitle, for: phoneNumber)
             return
         }
 #endif
-
-        insertLocalTag(cleanTitle, for: phoneNumber)
     }
 
     func report(phoneNumber: String, reason: String) async throws {
+        let key = canonical(phoneNumber)
+        let previousCount = localReportCounts[key] ?? 0
+        localReportCounts[key] = previousCount + 1
 #if canImport(FirebaseFunctions)
-        guard FirebaseApp.app() != nil else { throw CommunityStoreError.serviceUnavailable }
+        guard FirebaseApp.app() != nil else {
+            localReportCounts[key] = previousCount
+            throw CommunityStoreError.serviceUnavailable
+        }
         do {
             let result = try await callAuthenticated("reportNumber", data: [
                 "number": phoneNumber,
                 "reason": reason,
             ])
             if let payload = result.data as? [String: Any], let reportCount = payload["reportCount"] as? Int {
-                localReportCounts[canonical(phoneNumber)] = reportCount
-            } else {
-                await refresh(for: phoneNumber)
+                localReportCounts[key] = reportCount
             }
         } catch {
+            localReportCounts[key] = previousCount
             throw localized(error)
         }
 #endif
     }
 
-    private var functions: Functions {
-#if canImport(FirebaseFunctions)
-        Functions.functions(region: "europe-west1")
-#else
-        fatalError("Firebase Functions is unavailable")
-#endif
-    }
-
 #if canImport(FirebaseFunctions)
     private func callAuthenticated(_ name: String, data: [String: String]) async throws -> HTTPSCallableResult {
-        try await prepareVerifiedPhoneSession(forceRefresh: false)
+        try validateVerifiedPhoneSession()
         do {
             return try await functions.httpsCallable(name).call(data)
         } catch {
@@ -245,6 +245,17 @@ final class CommunityStore {
             try await prepareVerifiedPhoneSession(forceRefresh: true)
             return try await functions.httpsCallable(name).call(data)
         }
+    }
+
+    private func validateVerifiedPhoneSession() throws {
+#if canImport(FirebaseAuth)
+        guard FirebaseApp.app() != nil,
+              Auth.auth().currentUser?.phoneNumber?.isEmpty == false else {
+            throw CommunityStoreError.authenticationRequired
+        }
+#else
+        throw CommunityStoreError.authenticationRequired
+#endif
     }
 
     private func prepareVerifiedPhoneSession(forceRefresh: Bool) async throws {

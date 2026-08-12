@@ -35,6 +35,19 @@ final class PurchaseConfigurationTests: XCTestCase {
         ))
     }
 
+    func testCreditBadgeShowsPurchasedBalanceBeforePremiumInfinity() {
+        let premiumWithCredits = CreditBadgePresentation(isPremium: true, creditBalance: 5)
+        XCTAssertEqual(premiumWithCredits.text, "5")
+        XCTAssertEqual(
+            premiumWithCredits.accessibilityLabel,
+            "5 kredi; Premium ile sınırsız sorgulama"
+        )
+        XCTAssertEqual(
+            CreditBadgePresentation(isPremium: true, creditBalance: 0).text,
+            "∞"
+        )
+    }
+
     func testRevenueCatKeyValidationRejectsPlaceholders() {
         XCTAssertFalse(RevenueCatConfiguration.isUsablePublicSDKKey(""))
         XCTAssertFalse(RevenueCatConfiguration.isUsablePublicSDKKey("$(REVENUECAT_PUBLIC_SDK_KEY)"))
@@ -110,5 +123,27 @@ final class PurchaseConfigurationTests: XCTestCase {
 
         store.switchAccountForTesting("account-b")
         XCTAssertEqual(store.creditBalance, 7)
+    }
+
+    @MainActor
+    func testRevenueCatHistoryReconcilesCreditsExactlyOnce() throws {
+        let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(true, forKey: PurchaseStore.creditBalanceMigrationKey)
+        let store = PurchaseStore(defaults: defaults)
+        store.switchAccountForTesting("account-a")
+        let purchase = CreditPurchaseRecord(
+            id: "transaction-1",
+            productID: RevenueCatProductID.credits5.rawValue,
+            title: RevenueCatProductID.credits5.displayName,
+            creditAmount: 5,
+            purchaseDate: Date()
+        )
+
+        store.reconcileCreditHistoryForTesting([purchase])
+        store.reconcileCreditHistoryForTesting([purchase])
+
+        XCTAssertEqual(store.creditBalance, 5)
     }
 }

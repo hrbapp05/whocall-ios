@@ -60,13 +60,13 @@ struct PersonDetailView: View {
         }
         .confirmationDialog("Bu numarayı raporla", isPresented: $isReportPresented, titleVisibility: .visible) {
             ForEach(reportReasons, id: \.self) { reason in
-                Button(reason) {
-                    Task {
-                        do {
-                            try await communityStore.report(phoneNumber: number, reason: reason)
+                        Button(reason) {
                             alertMessage = "Raporunuz alındı. Teşekkür ederiz."
-                        } catch {
-                            alertMessage = error.localizedDescription
+                            Task {
+                                do {
+                                    try await communityStore.report(phoneNumber: number, reason: reason)
+                                } catch {
+                                    alertMessage = error.localizedDescription
                         }
                     }
                 }
@@ -373,14 +373,16 @@ private struct TagsView: View {
     }
 
     private func addTag() {
+        let submittedTag = draft
         isSubmitting = true
         errorMessage = nil
+        draft = ""
         Task {
             do {
-                try await communityStore.addTag(draft, for: phoneNumber)
-                draft = ""
+                try await communityStore.addTag(submittedTag, for: phoneNumber)
             } catch {
                 errorMessage = error.localizedDescription
+                draft = submittedTag
             }
             isSubmitting = false
         }

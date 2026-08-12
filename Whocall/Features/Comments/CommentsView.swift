@@ -147,19 +147,22 @@ struct CommentsView: View {
     }
 
     private func submitComment() {
+        let submittedComment = draftComment
         isSubmitting = true
         errorMessage = nil
+        draftComment = ""
+        isComposerPresented = false
         Task {
             do {
                 try await communityStore.addComment(
-                    draftComment,
+                    submittedComment,
                     for: phoneNumber,
                     author: ProfileServiceFactory.live().currentDisplayName ?? "WhoCall Kullanıcısı"
                 )
-                draftComment = ""
-                isComposerPresented = false
             } catch {
                 errorMessage = error.localizedDescription
+                draftComment = submittedComment
+                isComposerPresented = true
             }
             isSubmitting = false
         }
