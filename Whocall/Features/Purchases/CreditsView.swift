@@ -34,11 +34,26 @@ struct CreditsView: View {
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 32)
+
+                Button {
+                    Task { await purchaseStore.purchase(selectedProductID) }
+                } label: {
+                    if purchaseStore.isPurchasing {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Kredi Satın Al")
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(purchaseStore.isPurchasing)
+                .padding(.horizontal, 20)
+                .padding(.top, 28)
+                .padding(.bottom, 34)
             }
-            .padding(.bottom, 92)
         }
         .background(Color(red: 0.97, green: 0.98, blue: 1).ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button { dismiss() } label: { Image(systemName: "xmark") }
@@ -48,22 +63,6 @@ struct CreditsView: View {
                 Image("WhoCallLogo").resizable().scaledToFit().frame(width: 98, height: 20)
             }
             ToolbarItem(placement: .topBarTrailing) { ToolbarCreditBadge() }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button {
-                Task { await purchaseStore.purchase(selectedProductID) }
-            } label: {
-                if purchaseStore.isPurchasing {
-                    ProgressView().tint(.white)
-                } else {
-                    Text("Kredi Satın Al")
-                }
-            }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(purchaseStore.isPurchasing)
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                .background(.ultraThinMaterial)
         }
         .alert("Satın Alma", isPresented: purchaseAlertPresented) {
             Button("Tamam") { purchaseStore.clearAlert() }

@@ -59,11 +59,16 @@ struct PremiumView: View {
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 24)
+
+                purchaseActions
+                    .padding(.horizontal, 20)
+                    .padding(.top, 28)
+                    .padding(.bottom, 34)
             }
-            .padding(.bottom, 122)
         }
         .background(Color(red: 0.97, green: 0.98, blue: 1).ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if showsCloseButton {
@@ -82,35 +87,6 @@ struct PremiumView: View {
                 Image("WhoCallLogo").resizable().scaledToFit().frame(width: 98, height: 20)
             }
             ToolbarItem(placement: .topBarTrailing) { ToolbarCreditBadge() }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 12) {
-                Button {
-                    Task { await purchaseStore.purchase(selectedProductID) }
-                } label: {
-                    if purchaseStore.isPurchasing {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("Premium’a Geç")
-                    }
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(purchaseStore.isPurchasing)
-                HStack(spacing: 12) {
-                    Link("Abonelik Koşulları", destination: URL(string: "https://whocallapp.online")!)
-                    Text("•")
-                    Link("Gizlilik Politikası", destination: URL(string: "https://whocallapp.online")!)
-                    Text("•")
-                    Button("Geri Yükle") {
-                        Task { await purchaseStore.restorePurchases() }
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 10)
-            .background(.ultraThinMaterial)
         }
         .alert("Satın Alma", isPresented: purchaseAlertPresented) {
             Button("Tamam") { purchaseStore.clearAlert() }
@@ -139,6 +115,34 @@ struct PremiumView: View {
 
     private var selectedProductID: RevenueCatProductID {
         selectedPlan == 0 ? .premiumWeekly : .premiumMonthly
+    }
+
+    private var purchaseActions: some View {
+        VStack(spacing: 14) {
+            Button {
+                Task { await purchaseStore.purchase(selectedProductID) }
+            } label: {
+                if purchaseStore.isPurchasing {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("Premium’a Geç")
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(purchaseStore.isPurchasing)
+
+            HStack(spacing: 10) {
+                Link("Abonelik Koşulları", destination: URL(string: "https://whocallapp.online")!)
+                Text("•")
+                Link("Gizlilik Politikası", destination: URL(string: "https://whocallapp.online")!)
+                Text("•")
+                Button("Geri Yükle") {
+                    Task { await purchaseStore.restorePurchases() }
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
     }
 
     private var purchaseAlertPresented: Binding<Bool> {

@@ -20,6 +20,35 @@ enum RevenueCatProductID: String, CaseIterable, Sendable {
         default: nil
         }
     }
+
+    var displayName: String {
+        switch self {
+        case .premiumWeekly: "Haftalık Premium"
+        case .premiumMonthly: "Aylık Premium"
+        case .credits3: "3 Sorgulama Kredisi"
+        case .credits5: "5 Sorgulama Kredisi"
+        case .credits10: "10 Sorgulama Kredisi"
+        }
+    }
+}
+
+struct SubscriptionPurchaseRecord: Identifiable, Equatable, Sendable {
+    let productID: String
+    let title: String
+    let purchaseDate: Date
+    let expirationDate: Date?
+    let isActive: Bool
+    let willRenew: Bool
+
+    var id: String { productID }
+}
+
+struct CreditPurchaseRecord: Identifiable, Equatable, Sendable {
+    let id: String
+    let productID: String
+    let title: String
+    let creditAmount: Int
+    let purchaseDate: Date
 }
 
 enum RevenueCatConfiguration {
@@ -56,6 +85,9 @@ final class PurchaseStore {
     private(set) var creditBalance: Int
     private(set) var products: [String: StoreProduct] = [:]
     private(set) var offerings: Offerings?
+    private(set) var subscriptionHistory: [SubscriptionPurchaseRecord] = []
+    private(set) var creditPurchaseHistory: [CreditPurchaseRecord] = []
+    private(set) var subscriptionManagementURL: URL?
     var alertMessage: String?
 
     private var hasStarted = false
@@ -146,6 +178,15 @@ final class PurchaseStore {
         offerings = await fetchedOfferings
     }
 
+    func refreshCustomerInfo() async {
+        guard isConfigured else { return }
+        do {
+            apply(try await Purchases.shared.customerInfo(fetchPolicy: .fetchCurrent))
+        } catch {
+            alertMessage = "Satın alma bilgileri yenilenemedi. Lütfen bağlantınızı kontrol edip tekrar deneyin."
+        }
+    }
+
     func localizedPrice(for productID: RevenueCatProductID, fallback: String) -> String {
         products[productID.rawValue]?.localizedPriceString ?? fallback
     }
@@ -224,6 +265,36 @@ final class PurchaseStore {
     private func apply(_ customerInfo: CustomerInfo) {
         isPremium = customerInfo.entitlements[Self.premiumEntitlementID]?.isActive == true ||
             !customerInfo.activeSubscriptions.isEmpty
+        subscriptionManagementURL = customerInfo.managementURL
+
+        subscriptionHistory = customerInfo.subscriptionsByProductIdentifier.values
+            .compactMap { subscription in
+                guard let product = RevenueCatProductID(rawValue: subscription.productIdentifier),
+                      RevenueCatProductID.premium.contains(product) else { return nil }
+                return SubscriptionPurchaseRecord(
+                    productID: product.rawValue,
+                    title: product.displayName,
+                    purchaseDate: subscription.originalPurchaseDate ?? subscription.purchaseDate,
+                    expirationDate: subscription.expiresDate,
+                    isActive: subscription.isActive,
+                    willRenew: subscription.willRenew
+                )
+            }
+            .sorted { $0.purchaseDate > $1.purchaseDate }
+
+        creditPurchaseHistory = customerInfo.nonSubscriptions
+            .compactMap { transaction in
+                guard let product = RevenueCatProductID(rawValue: transaction.productIdentifier),
+                      let amount = product.creditAmount else { return nil }
+                return CreditPurchaseRecord(
+                    id: transaction.transactionIdentifier,
+                    productID: product.rawValue,
+                    title: product.displayName,
+                    creditAmount: amount,
+                    purchaseDate: transaction.purchaseDate
+                )
+            }
+            .sorted { $0.purchaseDate > $1.purchaseDate }
     }
 
     private func switchLocalAccount(to accountID: String?) {

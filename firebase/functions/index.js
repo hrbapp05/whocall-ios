@@ -5,7 +5,12 @@ const {FieldValue, getFirestore} = require("firebase-admin/firestore");
 const {getAuth} = require("firebase-admin/auth");
 const {defineSecret} = require("firebase-functions/params");
 const {HttpsError, onCall} = require("firebase-functions/v2/https");
-const {keyedDigest, normalizeName, normalizePhone} = require("./directory");
+const {
+  containsBlockedCommunityLanguage,
+  keyedDigest,
+  normalizeName,
+  normalizePhone,
+} = require("./directory");
 
 initializeApp();
 
@@ -184,6 +189,7 @@ exports.getNumberCommunity = onCall(callableOptions, async (request) => {
   ]);
   return {
     tags: community.data() && Array.isArray(community.data().tags) ? community.data().tags : [],
+    reportCount: Math.max(0, Number(community.data() && community.data().reportCount || 0)),
     comments: comments.docs.map((document) => ({
       id: document.id,
       author: document.data().author,
@@ -198,6 +204,9 @@ exports.addNumberComment = onCall(callableOptions, async (request) => {
   const number = normalizePhone(request.data && request.data.number);
   const body = cleanCommunityText(request.data && request.data.body, 2, 500);
   if (!number || !body) throw new HttpsError("invalid-argument", "Geçerli numara ve yorum zorunludur.");
+  if (containsBlockedCommunityLanguage(body)) {
+    throw new HttpsError("invalid-argument", "Yorum küfür veya hakaret içeremez.");
+  }
   const secret = hmacKey.value();
   await enforceRateLimit(request.auth.uid, "community-comment", 8, secret);
   const user = await getAuth().getUser(request.auth.uid);
@@ -219,6 +228,9 @@ exports.addNumberTag = onCall(callableOptions, async (request) => {
   const tag = cleanCommunityText(request.data && request.data.tag, 2, 24);
   if (!number || !tag || !/^[\p{L}\p{M}\d '&().\-]+$/u.test(tag)) {
     throw new HttpsError("invalid-argument", "Geçerli bir etiket girin.");
+  }
+  if (containsBlockedCommunityLanguage(tag)) {
+    throw new HttpsError("invalid-argument", "Etiket küfür veya hakaret içeremez.");
   }
   const secret = hmacKey.value();
   await enforceRateLimit(request.auth.uid, "community-tag", 12, secret);
@@ -250,10 +262,27 @@ exports.reportNumber = onCall(callableOptions, async (request) => {
   }
   const secret = hmacKey.value();
   await enforceRateLimit(request.auth.uid, "community-report", 8, secret);
-  await communityReference(number, secret).collection("reports").add({
-    uid: request.auth.uid,
-    reason,
-    createdAt: FieldValue.serverTimestamp(),
+  const reference = communityReference(number, secret);
+  const reportID = keyedDigest(request.auth.uid, secret);
+  const reportReference = reference.collection("reports").doc(`v1_${reportID}`);
+  await db.runTransaction(async (transaction) => {
+    const report = await transaction.get(reportReference);
+    transaction.set(reportReference, {
+      uidHash: reportID,
+      reason,
+      createdAt: report.exists ? report.data().createdAt : FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    if (!report.exists) {
+      transaction.set(reference, {
+        reportCount: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    }
   });
-  return {reported: true};
+  const community = await reference.get();
+  return {
+    reported: true,
+    reportCount: Math.max(0, Number(community.data() && community.data().reportCount || 0)),
+  };
 });

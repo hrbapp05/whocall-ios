@@ -30,9 +30,65 @@ struct Comment: Identifiable, Codable, Hashable, Sendable {
 
 enum CommunityStoreError: LocalizedError {
     case invalidResponse
+    case invalidContent
+    case blockedLanguage
+    case authenticationRequired
+    case tooManyRequests
+    case serviceUnavailable
 
     var errorDescription: String? {
-        "Topluluk verileri güncellenemedi. Lütfen tekrar deneyin."
+        switch self {
+        case .invalidResponse:
+            "Topluluk verileri güncellenemedi. Lütfen tekrar deneyin."
+        case .invalidContent:
+            "İçeriğin uzunluğunu ve biçimini kontrol edin."
+        case .blockedLanguage:
+            "Küfür veya hakaret içeren içerikler gönderilemez."
+        case .authenticationRequired:
+            "Bu işlem için telefon doğrulamasıyla yeniden giriş yapın."
+        case .tooManyRequests:
+            "Çok fazla işlem yaptınız. Lütfen kısa bir süre sonra tekrar deneyin."
+        case .serviceUnavailable:
+            "Topluluk servisine ulaşılamıyor. Lütfen tekrar deneyin."
+        }
+    }
+}
+
+enum CommunityTrustLevel: Equatable, Sendable {
+    case high
+    case medium
+    case risky
+
+    init(reportCount: Int) {
+        if reportCount > 20 { self = .risky }
+        else if reportCount >= 3 { self = .medium }
+        else { self = .high }
+    }
+}
+
+enum CommunityContentModerator {
+    private static let blockedTerms = [
+        "amk", "aq", "orospu", "sik", "siktir", "piç", "pic", "yavşak", "yavsak",
+        "şerefsiz", "serefsiz", "gerizekalı", "gerizekali", "salak", "aptal", "ibne",
+        "kahpe", "pezevenk", "göt", "got", "bok", "mal"
+    ]
+
+    static func containsBlockedLanguage(_ value: String) -> Bool {
+        let normalized = normalize(value)
+        let compact = normalized.replacingOccurrences(of: " ", with: "")
+        let words = Set(normalized.split(separator: " ").map(String.init))
+        return blockedTerms.contains { term in
+            let cleanTerm = normalize(term).replacingOccurrences(of: " ", with: "")
+            return cleanTerm.count <= 3 ? words.contains(cleanTerm) : compact.contains(cleanTerm)
+        }
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "tr_TR"))
+            .lowercased(with: Locale(identifier: "tr_TR"))
+            .replacingOccurrences(of: "ı", with: "i")
+            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -41,6 +97,7 @@ enum CommunityStoreError: LocalizedError {
 final class CommunityStore {
     private(set) var localComments: [String: [Comment]] = [:]
     private(set) var localTags: [String: [String]] = [:]
+    private(set) var localReportCounts: [String: Int] = [:]
     private(set) var isLoading = false
 
     func comments(for phoneNumber: String) -> [Comment] {
@@ -49,6 +106,14 @@ final class CommunityStore {
 
     func tags(for phoneNumber: String) -> [String] {
         localTags[canonical(phoneNumber)] ?? []
+    }
+
+    func reportCount(for phoneNumber: String) -> Int {
+        localReportCounts[canonical(phoneNumber)] ?? 0
+    }
+
+    func trustLevel(for phoneNumber: String) -> CommunityTrustLevel {
+        CommunityTrustLevel(reportCount: reportCount(for: phoneNumber))
     }
 
     func refresh(for phoneNumber: String) async {
@@ -66,6 +131,7 @@ final class CommunityStore {
             let key = canonical(phoneNumber)
             localTags[key] = (payload["tags"] as? [String] ?? []).sorted(by: localizedSort)
             localComments[key] = parseComments(payload["comments"] as? [[String: Any]] ?? [])
+            localReportCounts[key] = payload["reportCount"] as? Int ?? 0
         } catch {
             // Keep the last successful snapshot on screen during a temporary outage.
         }
@@ -74,16 +140,23 @@ final class CommunityStore {
 
     func addComment(_ body: String, for phoneNumber: String, author: String) async throws {
         let cleanBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanBody.isEmpty else { return }
+        guard (2...500).contains(cleanBody.count) else { throw CommunityStoreError.invalidContent }
+        guard !CommunityContentModerator.containsBlockedLanguage(cleanBody) else {
+            throw CommunityStoreError.blockedLanguage
+        }
         let safeAuthor = PersonNameFormatter.maskFullName(author)
 
 #if canImport(FirebaseFunctions)
         if FirebaseApp.app() != nil {
-            _ = try await functions.httpsCallable("addNumberComment").call([
-                "number": phoneNumber,
-                "body": cleanBody,
-                "author": safeAuthor,
-            ])
+            do {
+                _ = try await functions.httpsCallable("addNumberComment").call([
+                    "number": phoneNumber,
+                    "body": cleanBody,
+                    "author": safeAuthor,
+                ])
+            } catch {
+                throw localized(error)
+            }
             await refresh(for: phoneNumber)
             return
         }
@@ -102,14 +175,21 @@ final class CommunityStore {
         let cleanTitle = title
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-        guard (2...24).contains(cleanTitle.count) else { return }
+        guard (2...24).contains(cleanTitle.count) else { throw CommunityStoreError.invalidContent }
+        guard !CommunityContentModerator.containsBlockedLanguage(cleanTitle) else {
+            throw CommunityStoreError.blockedLanguage
+        }
 
 #if canImport(FirebaseFunctions)
         if FirebaseApp.app() != nil {
-            _ = try await functions.httpsCallable("addNumberTag").call([
-                "number": phoneNumber,
-                "tag": cleanTitle,
-            ])
+            do {
+                _ = try await functions.httpsCallable("addNumberTag").call([
+                    "number": phoneNumber,
+                    "tag": cleanTitle,
+                ])
+            } catch {
+                throw localized(error)
+            }
             await refresh(for: phoneNumber)
             return
         }
@@ -124,11 +204,20 @@ final class CommunityStore {
 
     func report(phoneNumber: String, reason: String) async throws {
 #if canImport(FirebaseFunctions)
-        guard FirebaseApp.app() != nil else { return }
-        _ = try await functions.httpsCallable("reportNumber").call([
-            "number": phoneNumber,
-            "reason": reason,
-        ])
+        guard FirebaseApp.app() != nil else { throw CommunityStoreError.serviceUnavailable }
+        do {
+            let result = try await functions.httpsCallable("reportNumber").call([
+                "number": phoneNumber,
+                "reason": reason,
+            ])
+            if let payload = result.data as? [String: Any], let reportCount = payload["reportCount"] as? Int {
+                localReportCounts[canonical(phoneNumber)] = reportCount
+            } else {
+                await refresh(for: phoneNumber)
+            }
+        } catch {
+            throw localized(error)
+        }
 #endif
     }
 
@@ -162,5 +251,27 @@ final class CommunityStore {
 
     private func localizedSort(_ lhs: String, _ rhs: String) -> Bool {
         lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+    }
+
+    private func localized(_ error: Error) -> CommunityStoreError {
+#if canImport(FirebaseFunctions)
+        let value = error as NSError
+        guard value.domain == FunctionsErrorDomain,
+              let code = FunctionsErrorCode(rawValue: value.code) else { return .serviceUnavailable }
+        switch code {
+        case .unauthenticated, .failedPrecondition:
+            return .authenticationRequired
+        case .invalidArgument:
+            return value.localizedDescription.localizedCaseInsensitiveContains("küfür") ||
+                value.localizedDescription.localizedCaseInsensitiveContains("hakaret")
+                ? .blockedLanguage : .invalidContent
+        case .resourceExhausted:
+            return .tooManyRequests
+        default:
+            return .serviceUnavailable
+        }
+#else
+        return .serviceUnavailable
+#endif
     }
 }

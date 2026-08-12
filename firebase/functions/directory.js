@@ -4,6 +4,12 @@ const {createHmac} = require("node:crypto");
 
 const NAME_PATTERN = /^[\p{L}\p{M}'’.\-]+(?: [\p{L}\p{M}'’.\-]+)*$/u;
 
+const BLOCKED_COMMUNITY_TERMS = [
+  "amk", "aq", "orospu", "sik", "siktir", "piç", "pic", "yavşak", "yavsak",
+  "şerefsiz", "serefsiz", "gerizekalı", "gerizekali", "salak", "aptal", "ibne",
+  "kahpe", "pezevenk", "göt", "got", "bok", "mal",
+];
+
 function normalizePhone(value) {
   if (typeof value !== "string") return null;
   let digits = value.replace(/\D/g, "");
@@ -26,4 +32,33 @@ function keyedDigest(value, secret) {
   return createHmac("sha256", secret).update(value, "utf8").digest("hex");
 }
 
-module.exports = {keyedDigest, normalizeName, normalizePhone};
+function normalizeForModeration(value) {
+  if (typeof value !== "string") return "";
+  return value
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("tr-TR")
+      .replace(/ı/g, "i")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+}
+
+function containsBlockedCommunityLanguage(value) {
+  const normalized = normalizeForModeration(value);
+  if (!normalized) return false;
+  const compact = normalized.replace(/\s+/g, "");
+  const words = normalized.split(/\s+/);
+  return BLOCKED_COMMUNITY_TERMS.some((term) => {
+    const normalizedTerm = normalizeForModeration(term).replace(/\s+/g, "");
+    if (normalizedTerm.length <= 3) return words.includes(normalizedTerm);
+    return compact.includes(normalizedTerm);
+  });
+}
+
+module.exports = {
+  containsBlockedCommunityLanguage,
+  keyedDigest,
+  normalizeForModeration,
+  normalizeName,
+  normalizePhone,
+};

@@ -10,6 +10,7 @@ import FirebaseCore
 @Observable
 final class AppSession {
     var isAuthenticated: Bool
+    private(set) var isResolvingAuthentication: Bool
     private(set) var userID: String?
 
 #if canImport(FirebaseAuth)
@@ -18,32 +19,85 @@ final class AppSession {
 
     init() {
 #if DEBUG
-        isAuthenticated = ProcessInfo.processInfo.arguments.contains("-uiTestAppShell")
-        userID = isAuthenticated ? "ui-test-user" : nil
+        let launchesAppShell = ProcessInfo.processInfo.arguments.contains("-uiTestAppShell")
+        isAuthenticated = launchesAppShell
+        isResolvingAuthentication = !launchesAppShell
+        userID = launchesAppShell ? "ui-test-user" : nil
 #else
         isAuthenticated = false
+        isResolvingAuthentication = true
         userID = nil
 #endif
     }
 
-    func start() {
+    func start() async {
 #if canImport(FirebaseAuth)
-        guard authStateHandle == nil, FirebaseApp.app() != nil else { return }
-        refreshFromCurrentUser()
-        authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
-            Task { @MainActor in
-                self?.isAuthenticated = user != nil
-                self?.userID = user?.uid
+        guard FirebaseApp.app() != nil else {
+            clearAuthentication()
+            return
+        }
+
+        if authStateHandle == nil {
+            authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+                Task { @MainActor in
+                    guard let self else { return }
+                    guard user != nil else {
+                        self.clearAuthentication()
+                        return
+                    }
+
+                    // A cached Firebase user is not enough to unlock the app. New
+                    // sign-ins are accepted only after the server-backed reload below.
+                    if user?.uid != self.userID {
+                        self.isAuthenticated = false
+                        self.userID = nil
+                        self.isResolvingAuthentication = false
+                    }
+                }
             }
         }
+
+        _ = await refreshValidatedCurrentUser()
+#else
+        clearAuthentication()
 #endif
     }
 
-    func refreshFromCurrentUser() {
+    @discardableResult
+    func refreshValidatedCurrentUser() async -> Bool {
 #if canImport(FirebaseAuth)
-        let user = FirebaseApp.app() == nil ? nil : Auth.auth().currentUser
-        isAuthenticated = user != nil
-        userID = user?.uid
+        guard FirebaseApp.app() != nil, let candidate = Auth.auth().currentUser else {
+            clearAuthentication()
+            return false
+        }
+
+        isResolvingAuthentication = true
+
+        do {
+            try await candidate.reload()
+            guard
+                let currentUser = Auth.auth().currentUser,
+                currentUser.uid == candidate.uid,
+                let phoneNumber = currentUser.phoneNumber,
+                !phoneNumber.isEmpty
+            else {
+                signOut()
+                return false
+            }
+
+            isAuthenticated = true
+            isResolvingAuthentication = false
+            userID = currentUser.uid
+            return true
+        } catch {
+            // Deleted, disabled and otherwise invalid cached users must never
+            // inherit access from a previous installation or account.
+            signOut()
+            return false
+        }
+#else
+        clearAuthentication()
+        return false
 #endif
     }
 
@@ -54,6 +108,13 @@ final class AppSession {
         }
 #endif
         isAuthenticated = false
+        isResolvingAuthentication = false
+        userID = nil
+    }
+
+    private func clearAuthentication() {
+        isAuthenticated = false
+        isResolvingAuthentication = false
         userID = nil
     }
 
@@ -86,12 +147,20 @@ struct AppRootView: View {
                 UITestShowcaseView(screen: screen)
             } else if !hasCompletedOnboarding && !skipsOnboardingForUITest {
                 OnboardingView { hasCompletedOnboarding = true }
+            } else if session.isResolvingAuthentication {
+                ZStack {
+                    Color(uiColor: .systemBackground).ignoresSafeArea()
+                    ProgressView("Oturum kontrol ediliyor…")
+                        .tint(DesignTokens.ColorToken.brandBlue)
+                }
             } else if !session.isAuthenticated {
                 AuthFlowView {
-                    session.refreshFromCurrentUser()
-                    postAuthenticationFlow = PostAuthenticationPresentation(
-                        requiresProfileCompletion: session.requiresProfileCompletion
-                    )
+                    Task {
+                        guard await session.refreshValidatedCurrentUser() else { return }
+                        postAuthenticationFlow = PostAuthenticationPresentation(
+                            requiresProfileCompletion: session.requiresProfileCompletion
+                        )
+                    }
                 }
             } else {
                 AppShellView { session.signOut() }
@@ -109,7 +178,7 @@ struct AppRootView: View {
             .environment(purchaseStore)
         }
         .task {
-            session.start()
+            await session.start()
             recentLookupStore.activateAccount(session.userID)
             await purchaseStore.start(accountID: session.userID)
             await PendingVerifiedProfileStore.retryIfNeeded()

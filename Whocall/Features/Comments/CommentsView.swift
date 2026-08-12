@@ -159,7 +159,7 @@ struct CommentsView: View {
                 draftComment = ""
                 isComposerPresented = false
             } catch {
-                errorMessage = "Yorum gönderilemedi. Lütfen tekrar deneyin."
+                errorMessage = error.localizedDescription
             }
             isSubmitting = false
         }

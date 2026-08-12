@@ -2,7 +2,12 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const {keyedDigest, normalizeName, normalizePhone} = require("../directory");
+const {
+  containsBlockedCommunityLanguage,
+  keyedDigest,
+  normalizeName,
+  normalizePhone,
+} = require("../directory");
 
 test("normalizes supported Turkish mobile formats", () => {
   assert.equal(normalizePhone("+90 500 000 00 00"), "905000000000");
@@ -26,4 +31,10 @@ test("uses a keyed digest instead of a plain phone hash", () => {
   const second = keyedDigest("905000000000", "secret-two");
   assert.equal(first.length, 64);
   assert.notEqual(first, second);
+});
+
+test("blocks Turkish insults despite spacing and casing", () => {
+  assert.equal(containsBlockedCommunityLanguage("ŞEREFSİZ arayan"), true);
+  assert.equal(containsBlockedCommunityLanguage("s i k t i r"), true);
+  assert.equal(containsBlockedCommunityLanguage("Güvenilir tesisatçı"), false);
 });

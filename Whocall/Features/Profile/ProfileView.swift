@@ -68,10 +68,10 @@ struct ProfileView: View {
                 }
 
                 Section("Satın Alımlar") {
-                    NavigationLink { PremiumView() } label: {
+                    NavigationLink { SubscriptionHistoryView() } label: {
                         Label("Aboneliklerim", systemImage: "crown")
                     }
-                    NavigationLink { CreditsView() } label: {
+                    NavigationLink { CreditPurchaseHistoryView() } label: {
                         Label("Kredi Alımlarım", systemImage: "creditcard")
                     }
                 }

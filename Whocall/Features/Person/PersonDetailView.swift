@@ -32,8 +32,16 @@ struct PersonDetailView: View {
                 in: .rect(topLeadingRadius: 42, topTrailingRadius: 42)
             )
             .padding(.top, 34)
+            .frame(maxWidth: .infinity, minHeight: 760, alignment: .top)
         }
-        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .background(alignment: .top) {
+            ZStack(alignment: .top) {
+                Color(.systemBackground).ignoresSafeArea()
+                Color(.systemGroupedBackground)
+                    .frame(height: 115)
+                    .ignoresSafeArea(edges: .top)
+            }
+        }
         .navigationTitle("Kişi Kartı")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -51,7 +59,7 @@ struct PersonDetailView: View {
                             try await communityStore.report(phoneNumber: number, reason: reason)
                             alertMessage = "Raporunuz alındı. Teşekkür ederiz."
                         } catch {
-                            alertMessage = "Rapor gönderilemedi. Lütfen tekrar deneyin."
+                            alertMessage = error.localizedDescription
                         }
                     }
                 }
@@ -127,8 +135,8 @@ struct PersonDetailView: View {
             HStack {
                 Text("Güven Seviyesi")
                 Spacer()
-                Text("Yüksek").foregroundStyle(DesignTokens.ColorToken.success)
-                Image(systemName: "checkmark.shield.fill").foregroundStyle(DesignTokens.ColorToken.success)
+                Text(trustPresentation.title).foregroundStyle(trustPresentation.color)
+                Image(systemName: trustPresentation.symbol).foregroundStyle(trustPresentation.color)
             }
             .frame(height: 44)
             Divider()
@@ -250,6 +258,16 @@ struct PersonDetailView: View {
     private var safeName: String { PersonNameFormatter.maskFullName(name) }
     private var comments: [Comment] { communityStore.comments(for: number) }
     private var tags: [String] { communityStore.tags(for: number) }
+    private var trustPresentation: (title: String, symbol: String, color: Color) {
+        switch communityStore.trustLevel(for: number) {
+        case .high:
+            ("Yüksek", "checkmark.shield.fill", DesignTokens.ColorToken.success)
+        case .medium:
+            ("Orta", "exclamationmark.shield.fill", .orange)
+        case .risky:
+            ("Riskli", "xmark.shield.fill", .red)
+        }
+    }
 
     private let reportReasons = [
         "Spam veya dolandırıcılık",
@@ -355,7 +373,7 @@ private struct TagsView: View {
                 try await communityStore.addTag(draft, for: phoneNumber)
                 draft = ""
             } catch {
-                errorMessage = "Etiket eklenemedi. Lütfen tekrar deneyin."
+                errorMessage = error.localizedDescription
             }
             isSubmitting = false
         }
