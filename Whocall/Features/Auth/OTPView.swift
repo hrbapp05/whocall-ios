@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct OTPView: View {
     private let referenceSize = CGSize(width: 402, height: 874)
@@ -16,7 +15,6 @@ struct OTPView: View {
     @State private var errorMessage: String?
     @State private var isVerifying = false
     @State private var cursorVisible = true
-    @State private var keyboardHeight: CGFloat = 0
 
     init(
         verificationID: String,
@@ -33,8 +31,8 @@ struct OTPView: View {
     var body: some View {
         GeometryReader { proxy in
             let scale = min(proxy.size.width / referenceSize.width, 1)
-            let availableReferenceHeight = (proxy.size.height - keyboardHeight) / scale
-            let continueButtonY = min(575.5, availableReferenceHeight - 50)
+            let availableReferenceHeight = proxy.size.height / scale
+            let continueButtonY = min(575.5, availableReferenceHeight - 47.5)
 
             ZStack {
                 DesignTokens.ColorToken.background
@@ -120,12 +118,6 @@ struct OTPView: View {
         .ignoresSafeArea(.container)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) {
-            updateKeyboardHeight(from: $0)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            keyboardHeight = 0
-        }
         .task {
             try? await Task.sleep(for: .milliseconds(300))
             isCodeFocused = true
@@ -141,13 +133,6 @@ struct OTPView: View {
         }
         let codeIndex = code.index(code.startIndex, offsetBy: index)
         return code[codeIndex]
-    }
-
-    private func updateKeyboardHeight(from notification: Notification) {
-        guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
-            return
-        }
-        keyboardHeight = max(0, UIScreen.main.bounds.height - frame.minY)
     }
 
     @MainActor
