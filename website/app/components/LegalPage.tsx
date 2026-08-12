@@ -18,24 +18,24 @@ export function LegalPage({
   sections: LegalSection[];
 }) {
   return (
-    <main className="legal-shell">
+    <main className="legal-shell" lang="en">
       <header className="legal-header">
         <Link className="brand" href="/">
           <Image src="/assets/whocall-app-icon.png" alt="" width={38} height={38} priority />
           <span>whoCall</span>
         </Link>
-        <Link className="legal-back" href="/">← Ana sayfaya dön</Link>
+        <Link className="legal-back" href="/">← Back to home</Link>
       </header>
       <section className="legal-hero">
         <div>
-          <span className="legal-updated">Son güncelleme: 12 Ağustos 2026</span>
+          <span className="legal-updated">Last updated: August 12, 2026</span>
           <h1>{title}</h1>
           <p>{intro}</p>
         </div>
       </section>
       <div className="legal-layout">
         <aside className="legal-toc">
-          <strong>İçindekiler</strong>
+          <strong>Contents</strong>
           {sections.map((section) => <a href={`#${section.id}`} key={section.id}>{section.title}</a>)}
         </aside>
         <article className="legal-content">
@@ -48,7 +48,7 @@ export function LegalPage({
         </article>
       </div>
       <footer className="legal-footer">
-        <span>© 2026 BLAVI LLC. Tüm hakları saklıdır.</span>
+        <span>© 2026 BLAVI LLC. All rights reserved.</span>
         <a href="mailto:support@levelappstuido.com">support@levelappstuido.com</a>
       </footer>
     </main>

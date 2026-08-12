@@ -40,8 +40,19 @@ export default function Home() {
         <nav aria-label="Ana menü">
           <a href="#nasil-calisir">Nasıl çalışır?</a>
           <a href="#uygulama">Uygulama</a>
+          <Link href="/privacy-policy">Privacy Policy</Link>
+          <Link href="/terms-of-use">Terms of Use</Link>
           <a href="mailto:support@levelappstuido.com">İletişim</a>
         </nav>
+        <details className="mobile-menu">
+          <summary aria-label="Menüyü aç">Menü</summary>
+          <div>
+            <a href="#nasil-calisir">Nasıl çalışır?</a>
+            <a href="#uygulama">Uygulama</a>
+            <Link href="/privacy-policy">Privacy Policy</Link>
+            <Link href="/terms-of-use">Terms of Use</Link>
+          </div>
+        </details>
         <AppStoreButton compact />
       </header>
 
@@ -77,8 +88,7 @@ export default function Home() {
         <div className="hero-visual" aria-label="WhoCall uygulamasından bir görünüm">
           <div className="floating-pill pill-left">Numara doğrulandı <b>✓</b></div>
           <div className="floating-pill pill-right"><b>Güvenli</b> görünüm</div>
-          <div className="phone-frame">
-            <div className="phone-speaker" />
+          <div className="hero-store-art">
             <Image src="/assets/03-sonucu-ogren.png" alt="WhoCall numara sorgulama sonucu hazırlanıyor" width={1320} height={2868} priority sizes="(max-width: 620px) 285px, 350px" />
           </div>
           <div className="hero-icon">
@@ -173,8 +183,8 @@ export default function Home() {
           </div>
           <div>
             <h3>Yasal</h3>
-            <Link href="/privacy-policy">Gizlilik Politikası</Link>
-            <Link href="/terms-of-use">Kullanım Koşulları</Link>
+            <Link href="/privacy-policy">Privacy Policy</Link>
+            <Link href="/terms-of-use">Terms of Use</Link>
           </div>
           <div>
             <h3>İletişim</h3>

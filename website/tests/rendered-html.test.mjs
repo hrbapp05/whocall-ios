@@ -26,17 +26,18 @@ test("landing page includes product copy and legal links", async () => {
 
 test("privacy policy describes actual app data practices", async () => {
   const html = await render("/privacy-policy");
-  assert.match(html, /Gizlilik Politikası/);
+  assert.match(html, /Privacy Policy/);
   assert.match(html, /Firebase/);
   assert.match(html, /RevenueCat/);
-  assert.match(html, /rehberinize erişim istemez/);
+  assert.match(html, /does not request access to your address book/);
 });
 
 test("terms page covers subscriptions and community use", async () => {
   const html = await render("/terms-of-use");
-  assert.match(html, /Kullanım Koşulları/);
-  assert.match(html, /Premium abonelikler/);
-  assert.match(html, /Topluluk içerikleri/);
+  assert.match(html, /Terms of Use/);
+  assert.match(html, /Premium subscriptions/);
+  assert.match(html, /Community content/);
+  assert.match(html, /Standard Licensed Application End User License Agreement/);
 });
 
 test("social card is the required preview size", async () => {

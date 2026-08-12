@@ -2,95 +2,104 @@ import type { Metadata } from "next";
 import { LegalPage, type LegalSection } from "../components/LegalPage";
 
 export const metadata: Metadata = {
-  title: "Kullanım Koşulları",
-  description: "WhoCall uygulamasının kullanım koşulları, abonelik ve topluluk kuralları.",
+  title: "Terms of Use",
+  description: "Terms governing WhoCall accounts, lookups, community features, credits, and subscriptions.",
   alternates: { canonical: "/terms-of-use" },
 };
 
 const sections: LegalSection[] = [
   {
-    id: "kabul",
-    title: "Koşulların kabulü",
-    content: <p>WhoCall uygulamasını veya web sitesini indirerek, açarak ya da kullanarak bu Kullanım Koşullarını ve Gizlilik Politikamızı kabul etmiş olursunuz. Kabul etmiyorsanız hizmeti kullanmayın. Hizmet BLAVI LLC tarafından Türkiye’deki kullanıcılar için sunulur.</p>,
+    id: "acceptance",
+    title: "Acceptance",
+    content: <p>By downloading, opening, or using the WhoCall app or website, you agree to these Terms of Use and our Privacy Policy. If you do not agree, do not use WhoCall. The service is provided by BLAVI LLC for users in Türkiye.</p>,
   },
   {
-    id: "hizmet",
-    title: "Hizmetin kapsamı",
+    id: "service",
+    title: "The WhoCall service",
     content: <>
-      <p>WhoCall, Türkiye cep telefonu numaraları için ad bilgisi, topluluk etiketleri, yorumlar, raporlar ve bunlardan türetilen güven seviyesi sunabilir. Sonuçlar mevcut veri kayıtlarına, doğrulanmış kullanıcı profillerine ve topluluk katkılarına dayanabilir.</p>
-      <div className="legal-callout"><p>WhoCall resmi bir kimlik doğrulama, acil durum, finansal değerlendirme veya kolluk hizmeti değildir. Her numara için sonuç bulunması ya da tüm bilgilerin eksiksiz ve güncel olması garanti edilmez.</p></div>
+      <p>WhoCall may provide a shortened name associated with a Turkish mobile number, together with community labels, comments, reports, and a trust indicator. Results may be based on database records, verified user profiles, and community contributions.</p>
+      <div className="legal-callout"><p>WhoCall is not an identity-verification, emergency, financial-assessment, or law-enforcement service. We do not guarantee that a result will exist or that every result will be complete, current, or error-free.</p></div>
     </>,
   },
   {
-    id: "hesap",
-    title: "Hesap ve telefon doğrulaması",
+    id: "account",
+    title: "Accounts and phone verification",
     content: <>
-      <p>Hesap açmak için yalnızca size ait veya kullanım yetkiniz bulunan kendi telefon numaranızı kullanmalısınız. SMS doğrulama kodunu kimseyle paylaşmamalı ve hesabınızda gerçekleşen işlemlerin güvenliğini sağlamalısınız.</p>
-      <p>Yanlış, yanıltıcı veya başkasına ait bilgilerle profil oluşturamaz; doğrulamayı aşmaya, hesapları toplu biçimde açmaya ya da hizmetin güvenlik önlemlerini etkisizleştirmeye çalışamazsınız.</p>
+      <p>You may use only your own phone number, or a number you are authorized to control, when creating an account. Keep SMS verification codes confidential and take reasonable steps to protect your account.</p>
+      <p>You may not create a profile with false or misleading details, impersonate another person, bypass verification, automate account creation, or defeat security controls.</p>
     </>,
   },
   {
-    id: "kullanim",
-    title: "İzin verilen ve yasaklanan kullanım",
+    id: "acceptable-use",
+    title: "Acceptable use",
     content: <>
-      <p>WhoCall’u yalnızca kişisel, hukuka uygun ve bu koşullarla uyumlu amaçlarla kullanabilirsiniz. Aşağıdakiler yasaktır:</p>
+      <p>You may use WhoCall only for personal and lawful purposes. You must not:</p>
       <ul>
-        <li>Hizmeti taciz, takip, tehdit, ayrımcılık, doxing veya başka kişilerin mahremiyetini ihlal etmek için kullanmak.</li>
-        <li>Sonuçları otomatik araçlarla toplamak, kopyalamak, yeniden satmak veya geniş ölçekli bir telefon dizini oluşturmak.</li>
-        <li>API’ye veya uygulamaya yetkisiz erişmek; hız sınırlarını, ödeme sistemini ya da güvenlik kontrollerini aşmak.</li>
-        <li>Zararlı yazılım, yanıltıcı içerik, reklam, spam, hakaret veya hukuka aykırı içerik göndermek.</li>
-        <li>WhoCall’un ya da üçüncü kişilerin fikri mülkiyet haklarını ihlal etmek.</li>
+        <li>Use WhoCall for harassment, stalking, threats, discrimination, doxing, or invasion of privacy.</li>
+        <li>Scrape, copy, aggregate, resell, or use results to build a large-scale phone directory.</li>
+        <li>Access the app or API without authorization or bypass rate limits, payment controls, or security measures.</li>
+        <li>Submit malware, spam, advertising, profanity, abusive statements, deceptive reports, or unlawful content.</li>
+        <li>Infringe the intellectual-property or other rights of WhoCall or any third party.</li>
       </ul>
     </>,
   },
   {
-    id: "topluluk",
-    title: "Topluluk içerikleri",
+    id: "community",
+    title: "Community content",
     content: <>
-      <p>Yorum, etiket veya rapor gönderdiğinizde içeriğin doğru olduğuna iyi niyetle inandığınızı, gerekli haklara sahip olduğunuzu ve hukuka aykırı kişisel veri paylaşmadığınızı kabul edersiniz.</p>
-      <p>İçeriğiniz üzerindeki haklarınız sizde kalır. İçeriği hizmeti işletmek, görüntülemek, güvenliğini sağlamak ve geliştirmek için kullanmamıza; teknik olarak çoğaltmamıza ve biçimlendirmemize dünya çapında, münhasır olmayan ve bedelsiz bir lisans verirsiniz. Kuralları ihlal eden içerikleri kaldırabilir, görünürlüğünü sınırlayabilir veya ilgili hesabın erişimini askıya alabiliriz.</p>
+      <p>When you submit a comment, label, or report, you represent that you reasonably believe it is accurate, that you have the right to submit it, and that it does not unlawfully disclose personal data.</p>
+      <p>You retain ownership of your content. You grant BLAVI LLC a worldwide, non-exclusive, royalty-free license to host, reproduce, format, display, moderate, and use that content as necessary to operate, secure, and improve WhoCall. We may remove content or restrict accounts that violate these Terms.</p>
     </>,
   },
   {
-    id: "satin-alim",
-    title: "Krediler, Premium ve ödemeler",
+    id: "purchases",
+    title: "Credits, Premium, and billing",
     content: <>
-      <h3>Sorgu kredileri</h3>
-      <p>Krediler, uygulama içinde belirtilen sayı kadar ücretli sorgu sonucuna erişim sağlar. Krediler nakde çevrilemez, devredilemez ve kanunen zorunlu olmadıkça iade edilmez.</p>
-      <h3>Premium abonelikler</h3>
-      <p>Premium abonelikler, satın alma ekranında belirtilen dönem boyunca sınırsız sorgu gibi özellikler sunabilir. Abonelik, mevcut dönemin bitiminden en az 24 saat önce iptal edilmezse Apple hesabınız üzerinden otomatik yenilenebilir. Ücret ve dönem satın alma onayından önce App Store’da gösterilir.</p>
-      <h3>Yönetim ve iade</h3>
-      <p>Aboneliğinizi Apple hesabınızın Abonelikler bölümünden yönetebilir veya iptal edebilirsiniz. Ödemeler Apple tarafından işlenir; iade talepleri Apple’ın geçerli kurallarına tabidir. Satın alımları geri yükleme özelliği uygulama içinde sunulabilir.</p>
+      <h3>Lookup credits</h3>
+      <p>Credits provide the number of paid lookup results shown at purchase. Credits have no cash value, are not transferable, and are not refundable except where required by law or Apple policy.</p>
+      <h3>Premium subscriptions</h3>
+      <p>Premium may provide unlimited lookups and other features for the selected period. Subscriptions automatically renew through your Apple Account unless cancelled at least 24 hours before the current period ends. Price and billing period are displayed before purchase confirmation.</p>
+      <h3>Management and refunds</h3>
+      <p>You can manage or cancel a subscription in your Apple Account subscription settings. Apple processes payments and handles refund requests under its applicable policies. WhoCall may provide a restore-purchases control in the app.</p>
     </>,
   },
   {
-    id: "fikri-mulkiyet",
-    title: "Fikri mülkiyet",
-    content: <p>WhoCall adı, uygulama ikonu, tasarımlar, yazılım, metinler ve BLAVI LLC tarafından oluşturulan diğer tüm içerikler ilgili fikri mülkiyet mevzuatıyla korunur. Bu koşullar size yalnızca kişisel kullanım için sınırlı, geri alınabilir, devredilemez ve münhasır olmayan bir kullanım hakkı verir.</p>,
-  },
-  {
-    id: "sorumluluk",
-    title: "Garanti ve sorumluluk sınırı",
+    id: "license",
+    title: "App license and Apple terms",
     content: <>
-      <p>Hizmet, yürürlükteki hukukun izin verdiği ölçüde “olduğu gibi” sunulur. Sonuçların doğruluğu, eksiksizliği, belirli bir amaca uygunluğu veya kesintisiz erişim konusunda garanti vermeyiz. WhoCall sonuçları tek başına önemli bir kararın temeli yapılmamalıdır.</p>
-      <p>Kanunen sınırlandırılamayan sorumluluklar hariç olmak üzere BLAVI LLC; dolaylı zararlar, veri kaybı, kâr kaybı, hizmet kesintisi veya kullanıcı ya da üçüncü kişi içeriklerinden doğan zararlardan sorumlu değildir. Toplam sorumluluğumuz, talebe yol açan olaydan önceki 12 ayda WhoCall için ödediğiniz tutarı aşmaz.</p>
+      <p>BLAVI LLC grants you a limited, personal, revocable, non-exclusive, non-transferable license to use WhoCall on Apple-branded devices you own or control, subject to the App Store Usage Rules and these Terms. You may not copy, modify, reverse engineer, redistribute, sublicense, or commercially exploit the app except where applicable law does not allow that restriction.</p>
+      <p>These Terms are between you and BLAVI LLC, not Apple. BLAVI LLC, not Apple, is responsible for WhoCall, support, maintenance, product claims, and intellectual-property claims. Apple and its subsidiaries are third-party beneficiaries and may enforce the applicable app-license terms after your acceptance.</p>
+      <p>Where these Terms do not address an app-license matter, Apple’s <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" rel="noreferrer" target="_blank">Standard Licensed Application End User License Agreement</a> applies. If there is a conflict, mandatory App Store terms and applicable law control.</p>
     </>,
   },
   {
-    id: "sona-erme",
-    title: "Askıya alma ve sona erme",
-    content: <p>Bu koşulları veya hukuku ihlal etmeniz, hizmetin güvenliğini tehlikeye atmanız ya da diğer kullanıcılara zarar vermeniz halinde erişiminizi sınırlayabilir veya sona erdirebiliriz. Hizmeti kullanmayı dilediğiniz zaman bırakabilirsiniz. Sona erme, önceden doğmuş ödeme ve sorumluluk hükümlerini ortadan kaldırmaz.</p>,
+    id: "intellectual-property",
+    title: "Intellectual property",
+    content: <p>The WhoCall name, app icon, interface, software, copy, and other materials created by BLAVI LLC are protected by applicable intellectual-property laws. No rights are granted except the limited right to use the service under these Terms.</p>,
   },
   {
-    id: "degisiklik-iletisim",
-    title: "Değişiklikler ve iletişim",
+    id: "disclaimers",
+    title: "Disclaimers and liability",
     content: <>
-      <p>Hizmeti ve bu koşulları zaman zaman güncelleyebiliriz. Önemli değişiklikleri uygun bir kanaldan duyururuz. Güncellenmiş koşullar yürürlüğe girdikten sonra hizmeti kullanmaya devam etmeniz yeni koşulları kabul ettiğiniz anlamına gelir.</p>
-      <p>Bu koşullar hakkında <a href="mailto:support@levelappstuido.com">support@levelappstuido.com</a> adresinden bize ulaşabilirsiniz. Uyuşmazlıklarda uygulanması zorunlu tüketici hükümleri ve kanunlar saklıdır.</p>
+      <p>To the fullest extent allowed by law, WhoCall is provided “as is” and “as available.” We disclaim implied warranties of accuracy, fitness for a particular purpose, and uninterrupted availability. Do not rely on a lookup result as the sole basis for an important decision.</p>
+      <p>Except for liability that cannot legally be excluded, BLAVI LLC is not liable for indirect, incidental, special, or consequential losses, loss of data or profit, service interruption, or harm caused by user or third-party content. Our aggregate liability will not exceed the amount you paid for WhoCall during the 12 months before the event giving rise to the claim.</p>
+    </>,
+  },
+  {
+    id: "termination",
+    title: "Suspension and termination",
+    content: <p>We may restrict or terminate access if you violate these Terms or applicable law, threaten the security of the service, or harm other users. You may stop using WhoCall at any time. Provisions that by their nature should survive termination will remain effective.</p>,
+  },
+  {
+    id: "law",
+    title: "Governing law, changes, and contact",
+    content: <>
+      <p>These Terms are governed by the laws of Türkiye, without limiting mandatory consumer rights or jurisdiction rules that apply to you. We may update these Terms as WhoCall or applicable rules change. Material changes will be announced through an appropriate channel.</p>
+      <p>Questions about these Terms can be sent to <a href="mailto:support@levelappstuido.com">support@levelappstuido.com</a>.</p>
     </>,
   },
 ];
 
 export default function TermsOfUsePage() {
-  return <LegalPage title="Kullanım Koşulları" intro="WhoCall’u kullanırken haklarınızı, sorumluluklarınızı ve topluluk kurallarını bu sayfada bulabilirsiniz." sections={sections} />;
+  return <LegalPage title="Terms of Use" intro="These Terms govern your WhoCall account, lookups, community contributions, credits, subscriptions, and app license." sections={sections} />;
 }

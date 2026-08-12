@@ -43,10 +43,16 @@ img { display: block; max-width: 100%; }
 }
 .brand { align-items: center; display: inline-flex; font-size: 24px; font-weight: 780; letter-spacing: -1.5px; width: max-content; }
 .brand img { border-radius: 12px; margin-right: 10px; }
-.site-header nav { display: flex; gap: 34px; font-size: 14px; font-weight: 600; }
+.site-header nav { display: flex; gap: 22px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .site-header nav a { opacity: .68; transition: opacity .2s, transform .2s; }
 .site-header nav a:hover { opacity: 1; transform: translateY(-1px); }
 .site-header > .app-store-button { justify-self: end; }
+.mobile-menu { display: none; position: relative; }
+.mobile-menu summary { cursor: pointer; font-size: 13px; font-weight: 700; list-style: none; padding: 12px; }
+.mobile-menu summary::-webkit-details-marker { display: none; }
+.mobile-menu > div { background: white; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 45px rgba(0,28,90,.2); min-width: 190px; padding: 10px; position: absolute; right: 0; top: 48px; }
+.mobile-menu a { border-radius: 10px; display: block; font-size: 13px; font-weight: 650; padding: 10px 12px; }
+.mobile-menu a:hover { background: #eef4ff; color: var(--blue); }
 
 .app-store-button {
   align-items: center;
@@ -125,22 +131,18 @@ img { display: block; max-width: 100%; }
 .trust-row span:before { background: #70e2ff; border-radius: 50%; content: ""; height: 5px; margin-right: 8px; width: 5px; }
 
 .hero-visual { align-self: end; height: 630px; min-width: 420px; position: relative; z-index: 3; }
-.phone-frame {
-  background: #050505;
-  border: 7px solid #161b25;
-  border-radius: 67px;
+.hero-store-art {
+  border-radius: 36px;
   bottom: -260px;
-  box-shadow: 0 50px 100px rgba(0, 12, 70, .6), inset 0 0 0 2px #7c8491;
+  box-shadow: 0 50px 100px rgba(0, 12, 70, .6);
   height: 810px;
   left: 50%;
   overflow: hidden;
-  padding: 12px;
   position: absolute;
   transform: translateX(-46%) rotate(5deg);
   width: 374px;
 }
-.phone-frame img { border-radius: 50px; height: 100%; object-fit: cover; width: 100%; }
-.phone-speaker { background: #08090b; border-radius: 18px; height: 27px; left: 50%; position: absolute; top: 22px; transform: translateX(-50%); width: 100px; z-index: 2; }
+.hero-store-art img { height: 100%; object-fit: cover; width: 100%; }
 .hero-icon { animation: float 5s ease-in-out infinite; bottom: 35px; filter: drop-shadow(0 24px 25px rgba(0,0,90,.35)); left: 0; position: absolute; width: 132px; z-index: 5; }
 .hero-icon img { border-radius: 29px; }
 .floating-pill { animation: bob 4s ease-in-out infinite; backdrop-filter: blur(14px); background: rgba(255,255,255,.92); border: 1px solid #fff; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,25,90,.25); color: var(--ink); font-size: 13px; padding: 13px 16px; position: absolute; z-index: 6; }
@@ -209,8 +211,7 @@ footer { background: #040914; color: white; display: grid; gap: 50px; grid-templ
 .footer-links h3 { color: rgba(255,255,255,.35); font-size: 11px; letter-spacing: 1.5px; margin: 0 0 19px; text-transform: uppercase; }
 .footer-links a { color: rgba(255,255,255,.72); display: block; font-size: 14px; margin-bottom: 13px; transition: color .2s; }
 .footer-links a:hover { color: white; }
-.footer-links .app-store-button { color: white; margin: 0; transform: scale(.78); transform-origin: left top; }
-.footer-links .app-store-button:hover { transform: scale(.78) translateY(-2px); }
+.footer-links a.app-store-button { color: white; display: inline-flex; margin: 4px 0 0; width: max-content; }
 .footer-bottom { border-top: 1px solid rgba(255,255,255,.1); color: rgba(255,255,255,.35); display: flex; font-size: 11px; grid-column: 1/-1; justify-content: space-between; padding-top: 22px; }
 
 .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
@@ -248,12 +249,13 @@ footer { background: #040914; color: white; display: grid; gap: 50px; grid-templ
 .legal-footer a { color: white; }
 
 @media (max-width: 980px) {
-  .site-header { grid-template-columns: 1fr auto; }
+  .site-header { grid-template-columns: 1fr auto auto; }
   .site-header nav { display: none; }
+  .mobile-menu { display: block; }
   .hero { grid-template-columns: 1fr; padding-top: 165px; }
   .hero-copy { max-width: 680px; }
   .hero-visual { height: 520px; margin: 30px auto 0; max-width: 520px; width: 100%; }
-  .phone-frame { bottom: -310px; height: 760px; }
+  .hero-store-art { bottom: -310px; height: 760px; }
   .section-heading, .showcase-copy { grid-template-columns: 1fr; }
   .section-heading h2, .showcase-copy h2 { grid-row: auto; margin-bottom: 20px; }
   .feature-grid { grid-template-columns: 1fr; }
@@ -273,15 +275,14 @@ footer { background: #040914; color: white; display: grid; gap: 50px; grid-templ
   .site-header { border-radius: 18px; padding: 8px; top: 14px; width: calc(100% - 24px); }
   .site-header .brand span { display: none; }
   .site-header .brand img { margin: 0; }
-  .site-header .app-store-button { min-width: 128px; }
+  .site-header .app-store-button { display: none; }
   .hero { min-height: 800px; padding: 135px 22px 40px; }
   .hero h1 { font-size: 59px; letter-spacing: -4.5px; }
   .hero-lead { font-size: 16px; }
   .hero-actions { align-items: flex-start; flex-direction: column; gap: 20px; }
   .trust-row { gap: 10px 16px; margin-top: 30px; }
   .hero-visual { height: 390px; min-width: 0; }
-  .phone-frame { border-radius: 52px; bottom: -390px; height: 700px; padding: 9px; width: 305px; }
-  .phone-frame img { border-radius: 42px; }
+  .hero-store-art { border-radius: 28px; bottom: -390px; height: 700px; width: 305px; }
   .hero-icon { bottom: 5px; left: 5px; width: 90px; }
   .floating-pill { font-size: 11px; padding: 10px; }
   .pill-left { left: 0; top: 120px; }
