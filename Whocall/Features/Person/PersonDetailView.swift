@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct PersonDetailView: View {
+    private static let cardTopInset: CGFloat = 60
+    private static let cardTopRadius: CGFloat = 42
+
     @Environment(CommunityStore.self) private var communityStore
     @Environment(\.openURL) private var openURL
     let name: String
@@ -30,20 +33,24 @@ struct PersonDetailView: View {
             .frame(maxWidth: .infinity, minHeight: 740, alignment: .top)
             .background(
                 Color(.systemBackground),
-                in: .rect(topLeadingRadius: 42, topTrailingRadius: 42)
+                in: .rect(
+                    topLeadingRadius: Self.cardTopRadius,
+                    topTrailingRadius: Self.cardTopRadius
+                )
             )
-            .padding(.top, 60)
+            .padding(.top, Self.cardTopInset)
         }
         .background(alignment: .top) {
             ZStack(alignment: .top) {
                 Color(.systemBackground)
                 Color(.systemGroupedBackground)
-                    .frame(height: 60)
+                    .frame(height: Self.cardTopInset + Self.cardTopRadius)
             }
-            .ignoresSafeArea()
         }
         .navigationTitle("Kişi Kartı")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: onCredits) { ToolbarCreditBadge() }
