@@ -20,6 +20,7 @@ enum AuthError: LocalizedError, Equatable {
     case appVerificationFailed
     case providerDisabled
     case smsQuotaExceeded
+    case recaptchaCancelled
     case verificationFailed
 
     var errorDescription: String? {
@@ -42,6 +43,8 @@ enum AuthError: LocalizedError, Equatable {
             "Telefonla giriş şu anda kullanılamıyor."
         case .smsQuotaExceeded:
             "SMS gönderim sınırına ulaşıldı. Lütfen daha sonra tekrar deneyin."
+        case .recaptchaCancelled:
+            "Uygulama doğrulama ekranı tamamlanmadı. Lütfen tekrar deneyin."
         case .verificationFailed:
             "Doğrulama tamamlanamadı. Lütfen bilgilerinizi kontrol edip tekrar deneyin."
         }
@@ -111,8 +114,16 @@ struct FirebasePhoneAuthService: AuthServicing, @unchecked Sendable {
         }
     }
 
-    private static func localized(_ error: Error) -> AuthError {
-        switch (error as NSError).code {
+    static func localized(_ error: Error) -> AuthError {
+        let nsError = error as NSError
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+            let mappedUnderlying = localized(underlying)
+            if mappedUnderlying != .verificationFailed {
+                return mappedUnderlying
+            }
+        }
+
+        return switch nsError.code {
         case AuthErrorCode.invalidPhoneNumber.rawValue,
              AuthErrorCode.missingPhoneNumber.rawValue:
             .invalidPhoneNumber
@@ -134,7 +145,9 @@ struct FirebasePhoneAuthService: AuthServicing, @unchecked Sendable {
         case AuthErrorCode.operationNotAllowed.rawValue:
             .providerDisabled
         case AuthErrorCode.appNotAuthorized.rawValue,
-             AuthErrorCode.invalidAPIKey.rawValue:
+             AuthErrorCode.invalidAPIKey.rawValue,
+             AuthErrorCode.invalidClientID.rawValue,
+             AuthErrorCode.missingClientIdentifier.rawValue:
             .configurationMissing
         case AuthErrorCode.missingAppCredential.rawValue,
              AuthErrorCode.invalidAppCredential.rawValue,
@@ -142,8 +155,23 @@ struct FirebasePhoneAuthService: AuthServicing, @unchecked Sendable {
              AuthErrorCode.notificationNotForwarded.rawValue,
              AuthErrorCode.appNotVerified.rawValue,
              AuthErrorCode.captchaCheckFailed.rawValue,
-             AuthErrorCode.appVerificationUserInteractionFailure.rawValue:
+             AuthErrorCode.appVerificationUserInteractionFailure.rawValue,
+             AuthErrorCode.webContextAlreadyPresented.rawValue,
+             AuthErrorCode.webInternalError.rawValue,
+             AuthErrorCode.recaptchaNotEnabled.rawValue,
+             AuthErrorCode.missingRecaptchaToken.rawValue,
+             AuthErrorCode.invalidRecaptchaToken.rawValue,
+             AuthErrorCode.invalidRecaptchaAction.rawValue,
+             AuthErrorCode.missingClientType.rawValue,
+             AuthErrorCode.missingRecaptchaVersion.rawValue,
+             AuthErrorCode.invalidRecaptchaVersion.rawValue,
+             AuthErrorCode.invalidReqType.rawValue,
+             AuthErrorCode.recaptchaSDKNotLinked.rawValue,
+             AuthErrorCode.recaptchaSiteKeyMissing.rawValue,
+             AuthErrorCode.recaptchaActionCreationFailed.rawValue:
             .appVerificationFailed
+        case AuthErrorCode.webContextCancelled.rawValue:
+            .recaptchaCancelled
         default:
             .verificationFailed
         }

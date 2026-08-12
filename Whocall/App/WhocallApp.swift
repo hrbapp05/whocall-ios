@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             FirebaseApp.configure()
         }
         if FirebaseApp.app() != nil {
+            Auth.auth().languageCode = "tr"
             application.registerForRemoteNotifications()
         }
 #endif
@@ -29,7 +30,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) {
 #if canImport(FirebaseAuth)
         guard FirebaseApp.app() != nil else { return }
-        Auth.auth().setAPNSToken(deviceToken, type: .unknown)
+#if DEBUG
+        Auth.auth().setAPNSToken(deviceToken, type: .sandbox)
+#else
+        Auth.auth().setAPNSToken(deviceToken, type: .prod)
+#endif
 #endif
     }
 
@@ -68,6 +73,12 @@ struct WhocallApp: App {
     var body: some Scene {
         WindowGroup {
             AppRootView()
+#if canImport(FirebaseAuth)
+                .onOpenURL { url in
+                    guard FirebaseApp.app() != nil else { return }
+                    _ = Auth.auth().canHandle(url)
+                }
+#endif
         }
     }
 }

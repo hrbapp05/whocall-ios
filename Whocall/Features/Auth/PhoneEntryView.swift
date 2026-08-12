@@ -27,7 +27,11 @@ struct PhoneEntryView: View {
         GeometryReader { proxy in
             let scale = min(proxy.size.width / referenceSize.width, 1)
             let availableReferenceHeight = (proxy.size.height - keyboardHeight) / scale
-            let continueButtonY = min(575.5, availableReferenceHeight - 50)
+            let continueButtonY = keyboardHeight > 0
+                ? min(575.5, max(405, availableReferenceHeight - 44))
+                : 575.5
+            let isReady = localDigits.count == 10
+            let continueButtonWidth: CGFloat = isReady || isSending ? 345 : 126
 
             ZStack {
                 DesignTokens.ColorToken.background
@@ -47,7 +51,7 @@ struct PhoneEntryView: View {
                 .position(x: 201, y: 261)
                 .figmaEntrance(delay: 0.04, distance: 10)
 
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Image("TurkeyFlag")
                         .resizable()
                         .frame(width: 24, height: 24)
@@ -55,12 +59,13 @@ struct PhoneEntryView: View {
                     TextField("(506) 505 55 55", text: formattedNumber)
                         .keyboardType(.phonePad)
                         .textContentType(.telephoneNumber)
-                        .font(.system(size: 28, weight: .semibold))
+                        .font(.system(size: 25, weight: .semibold, design: .rounded))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .focused($isPhoneFocused)
                         .accessibilityIdentifier("auth.phone")
                 }
-                .frame(width: 245, height: 34)
-                .position(x: 211.5, y: 350)
+                .frame(width: 334, height: 38)
+                .position(x: 201, y: 350)
                 .figmaEntrance(delay: 0.10, distance: 10)
 
                 Rectangle()
@@ -89,21 +94,23 @@ struct PhoneEntryView: View {
                     }
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 345, height: 55)
+                    .frame(width: continueButtonWidth, height: 55)
                     .background(.black, in: .capsule)
                 }
                 .buttonStyle(.plain)
-                .disabled(localDigits.count != 10 || isSending)
-                .opacity(localDigits.count == 10 ? 1 : 0.46)
+                .disabled(!isReady || isSending)
+                .opacity(isReady || isSending ? 1 : 0.46)
                 .position(x: 201.5, y: continueButtonY)
+                .animation(.spring(response: 0.52, dampingFraction: 0.78), value: isReady)
+                .animation(.easeInOut(duration: 0.24), value: keyboardHeight)
                 .accessibilityIdentifier("auth.phone.continue")
             }
             .frame(width: referenceSize.width, height: referenceSize.height)
             .scaleEffect(scale, anchor: .top)
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
-            .animation(.easeOut(duration: 0.22), value: proxy.size.height)
         }
         .ignoresSafeArea(.container)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) {
@@ -126,7 +133,7 @@ struct PhoneEntryView: View {
 
     private var formattedNumber: Binding<String> {
         Binding(
-            get: { formatLocalNumber(localDigits) },
+            get: { TurkishPhoneNumberFormatter.display(localDigits) },
             set: { phoneNumber = String($0.filter(\.isNumber).prefix(10)) }
         )
     }
@@ -141,21 +148,13 @@ struct PhoneEntryView: View {
         )
     }
 
-    private func formatLocalNumber(_ digits: String) -> String {
-        guard !digits.isEmpty else { return "" }
-        var result = "(\(digits.prefix(3))"
-        if digits.count >= 3 { result += ")" }
-        if digits.count > 3 { result += " \(digits.dropFirst(3).prefix(3))" }
-        if digits.count > 6 { result += " \(digits.dropFirst(6).prefix(2))" }
-        if digits.count > 8 { result += " \(digits.dropFirst(8).prefix(2))" }
-        return result
-    }
-
     private func updateKeyboardHeight(from notification: Notification) {
         guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
             return
         }
-        keyboardHeight = max(0, UIScreen.main.bounds.height - frame.minY)
+        withAnimation(.easeInOut(duration: 0.24)) {
+            keyboardHeight = max(0, UIScreen.main.bounds.height - frame.minY)
+        }
     }
 
     @MainActor

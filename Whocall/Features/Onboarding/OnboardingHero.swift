@@ -18,20 +18,9 @@ struct OnboardingHero: View {
                 .gentleFloat(distance: 2.5, duration: 3.1)
                 .zIndex(1)
 
-            VStack(spacing: 0) {
-                LinearGradient(
-                    colors: [.clear, .white.opacity(0.78), .white],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 210)
-
-                Color.white
-            }
-            .frame(width: 402, height: 546)
-            .position(x: 201, y: 601)
-            .allowsHitTesting(false)
-            .zIndex(2)
+            phoneFade
+                .allowsHitTesting(false)
+                .zIndex(2)
 
             foregroundContent
                 .zIndex(3)
@@ -40,6 +29,37 @@ struct OnboardingHero: View {
         .clipped()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(page.title.replacingOccurrences(of: "\n", with: " ")))
+    }
+
+    private var phoneFade: some View {
+        let isDetailsPage = page == .details
+        let gradientHeight: CGFloat = isDetailsPage ? 272 : 210
+        let totalHeight: CGFloat = isDetailsPage ? 574 : 546
+        let centerY: CGFloat = isDetailsPage ? 587 : 601
+
+        return VStack(spacing: 0) {
+            LinearGradient(
+                stops: isDetailsPage
+                    ? [
+                        .init(color: .clear, location: 0),
+                        .init(color: .white.opacity(0.18), location: 0.16),
+                        .init(color: .white.opacity(0.82), location: 0.58),
+                        .init(color: .white, location: 0.86)
+                    ]
+                    : [
+                        .init(color: .clear, location: 0),
+                        .init(color: .white.opacity(0.78), location: 0.56),
+                        .init(color: .white, location: 1)
+                    ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: gradientHeight)
+
+            Color.white
+        }
+        .frame(width: 402, height: totalHeight)
+        .position(x: 201, y: centerY)
     }
 
     @ViewBuilder
