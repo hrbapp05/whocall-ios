@@ -23,7 +23,10 @@ struct LoginView: View {
                 Image("LoginAppIcon")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 123, height: 122)
+                    // Figma export includes its full 267×266 shadow canvas.
+                    // Rendering that canvas at its design size keeps the visible
+                    // blue app icon at the intended 123×122 points.
+                    .frame(width: 267, height: 266)
                     .position(x: 201.5, y: 364)
                     .popEntrance(delay: 0.12, initialScale: 0.34)
                     .gentleFloat(distance: 3, duration: 2.7)
