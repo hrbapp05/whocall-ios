@@ -83,4 +83,20 @@ final class PurchaseConfigurationTests: XCTestCase {
 
         XCTAssertEqual(store.creditBalance, 8)
     }
+
+    @MainActor
+    func testCreditsAreIsolatedBetweenVerifiedAccounts() throws {
+        let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(2, forKey: "\(PurchaseStore.creditBalanceKey).account.account-a")
+        defaults.set(7, forKey: "\(PurchaseStore.creditBalanceKey).account.account-b")
+
+        let store = PurchaseStore(defaults: defaults)
+        store.switchAccountForTesting("account-a")
+        XCTAssertEqual(store.creditBalance, 2)
+
+        store.switchAccountForTesting("account-b")
+        XCTAssertEqual(store.creditBalance, 7)
+    }
 }

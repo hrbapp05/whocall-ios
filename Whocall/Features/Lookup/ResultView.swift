@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ResultView: View {
+    @Environment(CommunityStore.self) private var communityStore
     let owner: PhoneOwner
     let onDetails: () -> Void
     let onNewLookup: () -> Void
@@ -44,6 +45,7 @@ struct ResultView: View {
                     .accessibilityLabel("Kredi yükle")
             }
         }
+        .task { await communityStore.refresh(for: owner.phoneNumber) }
     }
 
     private var displayNumber: String {
@@ -69,7 +71,7 @@ struct ResultView: View {
             }
             .padding(.vertical, 12)
             Divider()
-            HStack { Label("Topluluk Yorumları", systemImage: "bubble.left"); Spacer(); Text("12") }
+            HStack { Label("Topluluk Yorumları", systemImage: "bubble.left"); Spacer(); Text("\(comments.count)") }
                 .frame(height: 44)
             Divider()
             HStack(spacing: 6) {
@@ -80,9 +82,14 @@ struct ResultView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(2)
                 Spacer(minLength: 0)
-                compactTag("Komşu")
-                compactTag("Kankam")
-                compactTag("Tesisatçı")
+                if tags.isEmpty {
+                    Text("Henüz etiket yok")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(tags.prefix(2)), id: \.self) { compactTag($0) }
+                    if tags.count > 2 { compactTag("+\(tags.count - 2)") }
+                }
             }
             .frame(height: 48)
         }
@@ -96,6 +103,9 @@ struct ResultView: View {
     private var safeName: String {
         owner.privacySafe.displayName
     }
+
+    private var comments: [Comment] { communityStore.comments(for: owner.phoneNumber) }
+    private var tags: [String] { communityStore.tags(for: owner.phoneNumber) }
 
     private func compactTag(_ title: String) -> some View {
         Text(title)

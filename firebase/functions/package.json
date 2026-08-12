@@ -11,6 +11,7 @@
     "check": "node --check index.js && node --check directory.js"
   },
   "dependencies": {
+    "@google-cloud/functions-framework": "^5.0.5",
     "firebase-admin": "14.2.0",
     "firebase-functions": "7.3.2"
   }

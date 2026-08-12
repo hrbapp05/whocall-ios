@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct CreditBadge: View {
+    @Environment(PurchaseStore.self) private var purchaseStore
     var amount: Int?
-    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 0
 
     init(amount: Int? = nil) {
         self.amount = amount
@@ -14,7 +14,7 @@ struct CreditBadge: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 14, height: 14)
-            Text("\(displayAmount)")
+            Text(displayAmount)
                 .font(.system(size: 14, weight: .semibold))
         }
         .foregroundStyle(.black)
@@ -23,15 +23,17 @@ struct CreditBadge: View {
         .background(.white, in: .capsule)
         .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(displayAmount) kredi")
+        .accessibilityLabel(purchaseStore.isPremium ? "Sınırsız sorgulama" : "\(displayAmount) kredi")
     }
 
-    private var displayAmount: Int { amount ?? storedAmount }
+    private var displayAmount: String {
+        purchaseStore.isPremium ? "∞" : "\(amount ?? purchaseStore.creditBalance)"
+    }
 }
 
 struct ToolbarCreditBadge: View {
+    @Environment(PurchaseStore.self) private var purchaseStore
     var amount: Int?
-    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 0
 
     init(amount: Int? = nil) {
         self.amount = amount
@@ -40,15 +42,17 @@ struct ToolbarCreditBadge: View {
     var body: some View {
         HStack(spacing: 5) {
             Image("CreditGlyph").resizable().scaledToFit().frame(width: 14, height: 14)
-            Text("\(displayAmount)").font(.system(size: 14, weight: .semibold))
+            Text(displayAmount).font(.system(size: 14, weight: .semibold))
         }
         .foregroundStyle(.black)
         .frame(width: 48, height: 30)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(displayAmount) kredi")
+        .accessibilityLabel(purchaseStore.isPremium ? "Sınırsız sorgulama" : "\(displayAmount) kredi")
     }
 
-    private var displayAmount: Int { amount ?? storedAmount }
+    private var displayAmount: String {
+        purchaseStore.isPremium ? "∞" : "\(amount ?? purchaseStore.creditBalance)"
+    }
 }
 
 struct FigmaTag: View {

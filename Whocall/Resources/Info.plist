@@ -39,8 +39,6 @@
 	<true/>
 	<key>NSAccentColorName</key>
 	<string>AccentColor</string>
-	<key>NSContactsUsageDescription</key>
-	<string>Sorguladığınız telefon numaralarını rehberinizdeki adlarla eşleştirmek için kişilerinize erişim istiyoruz.</string>
 	<key>REVENUECAT_PUBLIC_SDK_KEY</key>
 	<string>$(REVENUECAT_PUBLIC_SDK_KEY)</string>
 	<key>UIApplicationSceneManifest</key>

@@ -23,7 +23,7 @@ final class PersonNameFormatterTests: XCTestCase {
 
     func testPrivacySafeOwnerDoesNotRetainSurname() {
         let owner = PhoneOwner(
-            phoneNumber: "+905061585598",
+            phoneNumber: "+905000000000",
             displayName: "ESME SOLMAZ",
             firstName: "ESME",
             lastName: "SOLMAZ"

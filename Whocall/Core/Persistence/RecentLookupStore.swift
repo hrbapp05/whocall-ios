@@ -7,27 +7,31 @@ final class RecentLookupStore {
     private(set) var records: [SearchRecord] = []
 
     private let defaults: UserDefaults
-    private let storageKey = "whocall.recentLookups.v1"
+    private let storageKeyPrefix = "whocall.recentLookups.v2"
+    private var activeAccountID: String?
     private var storedEntries: [StoredEntry] = []
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        records = []
+    }
+
+    func activateAccount(_ accountID: String?) {
+        guard activeAccountID != accountID else { return }
+        activeAccountID = accountID
+        storedEntries = []
+        records = []
+        guard accountID != nil else { return }
         load()
     }
 
-    func record(owner: PhoneOwner, contacts: ContactService) async {
+    func record(owner: PhoneOwner) {
         let safeOwner = owner.privacySafe
-        let canonicalNumber = owner.phoneNumber
         upsert(
-            phoneNumber: canonicalNumber,
+            phoneNumber: owner.phoneNumber,
             displayName: safeOwner.displayName,
             date: Date()
         )
-
-        if let contactName = await contacts.displayName(for: canonicalNumber),
-           !contactName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            updateDisplayName(PersonNameFormatter.maskFullName(contactName), for: canonicalNumber)
-        }
     }
 
     func clear() {
@@ -58,12 +62,6 @@ final class RecentLookupStore {
         persist()
     }
 
-    private func updateDisplayName(_ displayName: String, for phoneNumber: String) {
-        guard let index = storedEntries.firstIndex(where: { $0.phoneNumber == phoneNumber }) else { return }
-        storedEntries[index].displayName = displayName
-        persist()
-    }
-
     private func load() {
         guard let data = defaults.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([StoredEntry].self, from: data) else {
@@ -72,6 +70,11 @@ final class RecentLookupStore {
         }
         storedEntries = decoded.sorted { $0.date > $1.date }
         rebuildRecords()
+    }
+
+    private var storageKey: String {
+        guard let activeAccountID else { return "\(storageKeyPrefix).signed-out" }
+        return "\(storageKeyPrefix).\(activeAccountID)"
     }
 
     private func persist() {

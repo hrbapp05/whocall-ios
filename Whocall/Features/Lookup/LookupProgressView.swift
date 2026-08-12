@@ -167,13 +167,15 @@ struct LookupProgressView: View {
     @MainActor
     private func beginLookup() async {
         withAnimation { model.phase = 1 }
-        try? await Task.sleep(for: .milliseconds(650))
+        try? await Task.sleep(for: .milliseconds(750))
         guard !Task.isCancelled else { return }
         withAnimation { model.phase = 2 }
-        if let owner = await model.lookup(number: number) {
+        async let lookupResult = model.lookup(number: number)
+        try? await Task.sleep(for: .milliseconds(1_000))
+        if let owner = await lookupResult {
             guard !Task.isCancelled else { return }
             withAnimation { model.phase = 3 }
-            try? await Task.sleep(for: .milliseconds(450))
+            try? await Task.sleep(for: .milliseconds(900))
             guard !Task.isCancelled else { return }
             onResult(owner)
         }

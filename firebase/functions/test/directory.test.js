@@ -5,9 +5,9 @@ const assert = require("node:assert/strict");
 const {keyedDigest, normalizeName, normalizePhone} = require("../directory");
 
 test("normalizes supported Turkish mobile formats", () => {
-  assert.equal(normalizePhone("+90 506 158 55 98"), "905061585598");
-  assert.equal(normalizePhone("05061585598"), "905061585598");
-  assert.equal(normalizePhone("5061585598"), "905061585598");
+  assert.equal(normalizePhone("+90 500 000 00 00"), "905000000000");
+  assert.equal(normalizePhone("05000000000"), "905000000000");
+  assert.equal(normalizePhone("5000000000"), "905000000000");
 });
 
 test("rejects invalid and non-mobile numbers", () => {
@@ -22,8 +22,8 @@ test("accepts Turkish names and rejects markup", () => {
 });
 
 test("uses a keyed digest instead of a plain phone hash", () => {
-  const first = keyedDigest("905061585598", "secret-one");
-  const second = keyedDigest("905061585598", "secret-two");
+  const first = keyedDigest("905000000000", "secret-one");
+  const second = keyedDigest("905000000000", "secret-two");
   assert.equal(first.length, 64);
   assert.notEqual(first, second);
 });

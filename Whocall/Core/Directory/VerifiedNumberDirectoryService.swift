@@ -8,7 +8,14 @@ import FirebaseCore
 @MainActor
 protocol VerifiedNumberDirectoryServicing {
     func publishOwnProfile(firstName: String, lastName: String) async throws
-    func lookup(number: String) async throws -> PhoneOwner?
+    func setOwnProfileVisibility(_ isVisible: Bool) async throws
+    func lookup(number: String) async throws -> VerifiedNumberDirectoryLookup
+}
+
+enum VerifiedNumberDirectoryLookup: Equatable, Sendable {
+    case found(PhoneOwner)
+    case notRegistered
+    case hidden
 }
 
 enum VerifiedNumberDirectoryError: LocalizedError, Equatable {
@@ -40,7 +47,8 @@ enum VerifiedNumberDirectoryFactory {
 @MainActor
 struct DevelopmentVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing {
     func publishOwnProfile(firstName: String, lastName: String) async throws {}
-    func lookup(number: String) async throws -> PhoneOwner? { nil }
+    func setOwnProfileVisibility(_ isVisible: Bool) async throws {}
+    func lookup(number: String) async throws -> VerifiedNumberDirectoryLookup { .notRegistered }
 }
 
 #if canImport(FirebaseFunctions)
@@ -59,7 +67,17 @@ struct FirebaseVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing 
         ])
     }
 
-    func lookup(number: String) async throws -> PhoneOwner? {
+    func setOwnProfileVisibility(_ isVisible: Bool) async throws {
+        guard FirebaseApp.app() != nil else {
+            throw VerifiedNumberDirectoryError.configurationMissing
+        }
+
+        _ = try await functions.httpsCallable("setVerifiedProfileVisibility").call([
+            "isVisible": isVisible,
+        ])
+    }
+
+    func lookup(number: String) async throws -> VerifiedNumberDirectoryLookup {
         guard FirebaseApp.app() != nil else {
             throw VerifiedNumberDirectoryError.configurationMissing
         }
@@ -71,7 +89,9 @@ struct FirebaseVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing 
               let found = payload["found"] as? Bool else {
             throw VerifiedNumberDirectoryError.invalidResponse
         }
-        guard found else { return nil }
+        guard found else {
+            return payload["hidden"] as? Bool == true ? .hidden : .notRegistered
+        }
         guard let owner = payload["owner"] as? [String: Any],
               let phoneNumber = owner["phoneNumber"] as? String,
               let displayName = owner["displayName"] as? String,
@@ -80,12 +100,12 @@ struct FirebaseVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing 
             throw VerifiedNumberDirectoryError.invalidResponse
         }
 
-        return PhoneOwner(
+        return .found(PhoneOwner(
             phoneNumber: phoneNumber,
             displayName: displayName,
             firstName: firstName,
             lastName: lastName
-        )
+        ))
     }
 }
 #endif

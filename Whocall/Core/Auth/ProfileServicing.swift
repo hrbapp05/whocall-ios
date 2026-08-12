@@ -7,6 +7,7 @@ import FirebaseCore
 
 @MainActor
 protocol ProfileServicing {
+    var currentUserID: String? { get }
     var currentDisplayName: String? { get }
     var currentPhoneNumber: String? { get }
     func updateProfile(firstName: String, lastName: String) async throws
@@ -26,6 +27,7 @@ enum ProfileServiceFactory {
 
 @MainActor
 struct DevelopmentProfileService: ProfileServicing {
+    var currentUserID: String? { "development-user" }
     var currentDisplayName: String? {
         UserDefaults.standard.string(forKey: "whocall.profile.displayName")
     }
@@ -42,6 +44,7 @@ struct DevelopmentProfileService: ProfileServicing {
 #if canImport(FirebaseAuth)
 @MainActor
 struct FirebaseProfileService: ProfileServicing {
+    var currentUserID: String? { Auth.auth().currentUser?.uid }
     var currentDisplayName: String? { Auth.auth().currentUser?.displayName }
     var currentPhoneNumber: String? { Auth.auth().currentUser?.phoneNumber }
 
@@ -56,6 +59,7 @@ struct FirebaseProfileService: ProfileServicing {
                 firstName: firstName,
                 lastName: lastName
             )
+            ProfileVisibilityPreference.setVisible(true, userID: user.uid)
             PendingVerifiedProfileStore.clear()
         } catch {
             // Profile creation must remain usable during a temporary Functions outage.
@@ -65,6 +69,22 @@ struct FirebaseProfileService: ProfileServicing {
     }
 }
 #endif
+
+enum ProfileVisibilityPreference {
+    private static let prefix = "whocall.profile.isVisible.v2"
+
+    static func isVisible(userID: String?) -> Bool {
+        guard let userID else { return true }
+        let key = "\(prefix).\(userID)"
+        guard UserDefaults.standard.object(forKey: key) != nil else { return true }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+
+    static func setVisible(_ isVisible: Bool, userID: String?) {
+        guard let userID else { return }
+        UserDefaults.standard.set(isVisible, forKey: "\(prefix).\(userID)")
+    }
+}
 
 enum PendingVerifiedProfileStore {
     private static let firstNameKey = "whocall.directory.pendingFirstName"

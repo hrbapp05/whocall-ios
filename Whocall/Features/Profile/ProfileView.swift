@@ -3,7 +3,9 @@ import UIKit
 
 struct ProfileView: View {
     let onSignOut: () -> Void
-    @AppStorage("whocall.profile.isVisible") private var isVisible = true
+    @State private var isVisible = true
+    @State private var hasLoadedVisibility = false
+    @State private var isUpdatingVisibility = false
     @State private var isPhoneVerificationPresented = false
     @State private var isCallerIDInfoPresented = false
     @State private var verificationMessage: String?
@@ -46,6 +48,7 @@ struct ProfileView: View {
                     .buttonStyle(.plain)
 
                     Toggle("Arama sonuçlarında görünürlük", isOn: $isVisible)
+                        .disabled(isUpdatingVisibility)
 
                     Button {
                         isCallerIDInfoPresented = true
@@ -91,10 +94,19 @@ struct ProfileView: View {
                 }
             }
             .sheet(isPresented: $isCallerIDInfoPresented) { callerIDInformation }
-            .alert("Numara Doğrulama", isPresented: verificationAlertBinding) {
+            .alert("WhoCall", isPresented: verificationAlertBinding) {
                 Button("Tamam", role: .cancel) { verificationMessage = nil }
             } message: {
                 Text(verificationMessage ?? "")
+            }
+            .task {
+                let profile = ProfileServiceFactory.live()
+                isVisible = ProfileVisibilityPreference.isVisible(userID: profile.currentUserID)
+                hasLoadedVisibility = true
+            }
+            .onChange(of: isVisible) { oldValue, newValue in
+                guard hasLoadedVisibility, oldValue != newValue else { return }
+                updateVisibility(newValue, revertingTo: oldValue)
             }
         }
     }
@@ -133,6 +145,23 @@ struct ProfileView: View {
             verificationMessage = "\(formattedPhoneNumber(phoneNumber)) numarası Firebase SMS doğrulamasıyla onaylanmış durumda."
         } else {
             isPhoneVerificationPresented = true
+        }
+    }
+
+    private func updateVisibility(_ newValue: Bool, revertingTo oldValue: Bool) {
+        isUpdatingVisibility = true
+        Task {
+            do {
+                try await VerifiedNumberDirectoryFactory.live().setOwnProfileVisibility(newValue)
+                let profile = ProfileServiceFactory.live()
+                ProfileVisibilityPreference.setVisible(newValue, userID: profile.currentUserID)
+            } catch {
+                hasLoadedVisibility = false
+                isVisible = oldValue
+                hasLoadedVisibility = true
+                verificationMessage = "Görünürlük ayarı sunucuyla eşitlenemedi. Lütfen tekrar deneyin."
+            }
+            isUpdatingVisibility = false
         }
     }
 

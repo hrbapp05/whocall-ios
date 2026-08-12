@@ -40,6 +40,8 @@ struct CommentsView: View {
     let phoneNumber: String
     @State private var isComposerPresented = false
     @State private var draftComment = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
 
     private let avatarColors = [
         Color(red: 0.73, green: 0.74, blue: 0.96),
@@ -60,9 +62,18 @@ struct CommentsView: View {
             header
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(Array(comments.enumerated()), id: \.element.id) { index, comment in
-                        CommentRow(comment: comment, color: avatarColors[index % avatarColors.count])
-                            .figmaEntrance(delay: min(Double(index) * 0.025, 0.18), distance: 10)
+                    if comments.isEmpty {
+                        ContentUnavailableView(
+                            "Henüz yorum yok",
+                            systemImage: "bubble.left.and.bubble.right",
+                            description: Text("Bu numara hakkındaki ilk topluluk yorumunu siz ekleyebilirsiniz.")
+                        )
+                        .padding(.top, 64)
+                    } else {
+                        ForEach(Array(comments.enumerated()), id: \.element.id) { index, comment in
+                            CommentRow(comment: comment, color: avatarColors[index % avatarColors.count])
+                                .figmaEntrance(delay: min(Double(index) * 0.025, 0.18), distance: 10)
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -75,6 +86,7 @@ struct CommentsView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $isComposerPresented) { composer }
+        .task { await communityStore.refresh(for: phoneNumber) }
     }
 
     private var header: some View {
@@ -109,16 +121,13 @@ struct CommentsView: View {
                     .padding(14)
                     .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
                 Button("Yorumu Gönder") {
-                    communityStore.addComment(
-                        draftComment,
-                        for: phoneNumber,
-                        author: ProfileServiceFactory.live().currentDisplayName ?? "WhoCall Kullanıcısı"
-                    )
-                    draftComment = ""
-                    isComposerPresented = false
+                    submitComment()
                 }
                 .buttonStyle(PrimaryButtonStyle(background: DesignTokens.ColorToken.brandBlue))
-                .disabled(draftComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(draftComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
+                if let errorMessage {
+                    Text(errorMessage).font(.caption).foregroundStyle(.red)
+                }
                 Spacer()
             }
             .padding(20)
@@ -135,5 +144,24 @@ struct CommentsView: View {
 
     private var comments: [Comment] {
         communityStore.comments(for: phoneNumber)
+    }
+
+    private func submitComment() {
+        isSubmitting = true
+        errorMessage = nil
+        Task {
+            do {
+                try await communityStore.addComment(
+                    draftComment,
+                    for: phoneNumber,
+                    author: ProfileServiceFactory.live().currentDisplayName ?? "WhoCall Kullanıcısı"
+                )
+                draftComment = ""
+                isComposerPresented = false
+            } catch {
+                errorMessage = "Yorum gönderilemedi. Lütfen tekrar deneyin."
+            }
+            isSubmitting = false
+        }
     }
 }

@@ -68,9 +68,49 @@ struct PhoneLookupService {
     }
 
     func lookup(number: String) async throws -> PhoneOwner {
-        if let verifiedOwner = try? await directory.lookup(number: number) {
-            return verifiedOwner.privacySafe
+        let profile = ProfileServiceFactory.live()
+        if canonical(profile.currentPhoneNumber) == canonical(number),
+           !canonical(number).isEmpty,
+           !ProfileVisibilityPreference.isVisible(userID: profile.currentUserID) {
+            throw VerifiedNumberDirectoryLookupError.hiddenByOwner
+        }
+        if canonical(profile.currentPhoneNumber) == canonical(number),
+           let displayName = profile.currentDisplayName,
+           let localOwner = owner(phoneNumber: number, displayName: displayName) {
+            return localOwner.privacySafe
+        }
+
+        if let directoryResult = try? await directory.lookup(number: number) {
+            switch directoryResult {
+            case let .found(verifiedOwner):
+                return verifiedOwner.privacySafe
+            case .hidden:
+                throw VerifiedNumberDirectoryLookupError.hiddenByOwner
+            case .notRegistered:
+                break
+            }
         }
         return try await apiClient.lookup(number: number).privacySafe
     }
+
+    private func canonical(_ number: String?) -> String {
+        String((number ?? "").filter(\.isNumber).suffix(10))
+    }
+
+    private func owner(phoneNumber: String, displayName: String) -> PhoneOwner? {
+        let parts = displayName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+        guard let firstName = parts.first, parts.count >= 2 else { return nil }
+        return PhoneOwner(
+            phoneNumber: canonical(phoneNumber),
+            displayName: displayName,
+            firstName: String(firstName),
+            lastName: String(parts.last ?? firstName)
+        )
+    }
+}
+
+enum VerifiedNumberDirectoryLookupError: Error {
+    case hiddenByOwner
 }

@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct HomeFlowView: View {
-    @Environment(ContactService.self) private var contactService
     @Environment(PurchaseStore.self) private var purchaseStore
     @Environment(RecentLookupStore.self) private var recentLookupStore
     @State private var path: [HomeRoute] = []
@@ -32,9 +31,10 @@ struct HomeFlowView: View {
                         path.append(.premium)
                         return
                     }
-                    Task {
-                        await recentLookupStore.record(owner: owner, contacts: contactService)
-                    }
+                    recentLookupStore.record(owner: owner)
+                    // Replace the progress screen so the result's Back button
+                    // returns directly to Home instead of replaying the scan.
+                    if !path.isEmpty { path.removeLast() }
                     path.append(.result(owner))
                 },
                 onCredits: { path.append(.credits) }

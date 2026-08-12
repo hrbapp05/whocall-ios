@@ -59,6 +59,8 @@ final class PurchaseStore {
     var alertMessage: String?
 
     private var hasStarted = false
+    private var activeAccountID: String?
+    private var revenueCatAccountID: String?
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -76,7 +78,8 @@ final class PurchaseStore {
         creditBalance = defaults.integer(forKey: Self.creditBalanceKey)
     }
 
-    func start() async {
+    func start(accountID: String? = nil) async {
+        switchLocalAccount(to: accountID)
         guard !hasStarted else { return }
         hasStarted = true
 
@@ -92,6 +95,8 @@ final class PurchaseStore {
         Purchases.configure(withAPIKey: publicSDKKey)
         isConfigured = true
 
+        await synchronizeRevenueCatAccount()
+
         Task { [weak self] in
             for await customerInfo in Purchases.shared.customerInfoStream {
                 guard let self else { return }
@@ -105,6 +110,15 @@ final class PurchaseStore {
         await refreshProducts()
     }
 
+    /// Firebase UID is a stable, non-PII identifier linked to the verified phone
+    /// account. It keeps entitlements and local consumable credits separate when
+    /// multiple people use the same device.
+    func activateAccount(_ accountID: String?) async {
+        switchLocalAccount(to: accountID)
+        guard isConfigured else { return }
+        await synchronizeRevenueCatAccount()
+    }
+
     var hasLookupAccess: Bool {
         isPremium || creditBalance > 0
     }
@@ -116,7 +130,7 @@ final class PurchaseStore {
         if isPremium { return true }
         guard creditBalance > 0 else { return false }
         creditBalance -= 1
-        defaults.set(creditBalance, forKey: Self.creditBalanceKey)
+        defaults.set(creditBalance, forKey: creditStorageKey)
         return true
     }
 
@@ -212,15 +226,56 @@ final class PurchaseStore {
             !customerInfo.activeSubscriptions.isEmpty
     }
 
+    private func switchLocalAccount(to accountID: String?) {
+        guard activeAccountID != accountID else { return }
+        activeAccountID = accountID
+        creditBalance = defaults.integer(forKey: creditStorageKey)
+    }
+
+#if DEBUG
+    func switchAccountForTesting(_ accountID: String?) {
+        switchLocalAccount(to: accountID)
+    }
+#endif
+
+    private func synchronizeRevenueCatAccount() async {
+        do {
+            if let activeAccountID {
+                guard revenueCatAccountID != activeAccountID else { return }
+                let result = try await Purchases.shared.logIn(activeAccountID)
+                revenueCatAccountID = activeAccountID
+                apply(result.customerInfo)
+            } else if revenueCatAccountID != nil {
+                let customerInfo = try await Purchases.shared.logOut()
+                revenueCatAccountID = nil
+                apply(customerInfo)
+            } else {
+                isPremium = false
+            }
+        } catch {
+            alertMessage = "Satın alma hesabı güncellenemedi. Lütfen bağlantınızı kontrol edip tekrar deneyin."
+        }
+    }
+
+    private var creditStorageKey: String {
+        guard let activeAccountID else { return Self.creditBalanceKey }
+        return "\(Self.creditBalanceKey).account.\(activeAccountID)"
+    }
+
+    private var processedTransactionsStorageKey: String {
+        guard let activeAccountID else { return Self.processedCreditTransactionsKey }
+        return "\(Self.processedCreditTransactionsKey).account.\(activeAccountID)"
+    }
+
     @discardableResult
     private func grantCreditsOnce(_ amount: Int, transactionID: String) -> Bool {
         var processedTransactions = Set(
-            defaults.stringArray(forKey: Self.processedCreditTransactionsKey) ?? []
+            defaults.stringArray(forKey: processedTransactionsStorageKey) ?? []
         )
         guard processedTransactions.insert(transactionID).inserted else { return false }
         creditBalance += amount
-        defaults.set(creditBalance, forKey: Self.creditBalanceKey)
-        defaults.set(Array(processedTransactions), forKey: Self.processedCreditTransactionsKey)
+        defaults.set(creditBalance, forKey: creditStorageKey)
+        defaults.set(Array(processedTransactions), forKey: processedTransactionsStorageKey)
         return true
     }
 }

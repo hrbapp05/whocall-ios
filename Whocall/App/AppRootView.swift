@@ -10,6 +10,7 @@ import FirebaseCore
 @Observable
 final class AppSession {
     var isAuthenticated: Bool
+    private(set) var userID: String?
 
 #if canImport(FirebaseAuth)
     private var authStateHandle: AuthStateDidChangeListenerHandle?
@@ -18,20 +19,31 @@ final class AppSession {
     init() {
 #if DEBUG
         isAuthenticated = ProcessInfo.processInfo.arguments.contains("-uiTestAppShell")
+        userID = isAuthenticated ? "ui-test-user" : nil
 #else
         isAuthenticated = false
+        userID = nil
 #endif
     }
 
     func start() {
 #if canImport(FirebaseAuth)
         guard authStateHandle == nil, FirebaseApp.app() != nil else { return }
-        isAuthenticated = Auth.auth().currentUser != nil
+        refreshFromCurrentUser()
         authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
                 self?.isAuthenticated = user != nil
+                self?.userID = user?.uid
             }
         }
+#endif
+    }
+
+    func refreshFromCurrentUser() {
+#if canImport(FirebaseAuth)
+        let user = FirebaseApp.app() == nil ? nil : Auth.auth().currentUser
+        isAuthenticated = user != nil
+        userID = user?.uid
 #endif
     }
 
@@ -42,6 +54,7 @@ final class AppSession {
         }
 #endif
         isAuthenticated = false
+        userID = nil
     }
 
     var requiresProfileCompletion: Bool {
@@ -55,7 +68,6 @@ struct AppRootView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var session = AppSession()
     @State private var purchaseStore = PurchaseStore()
-    @State private var contactService = ContactService()
     @State private var recentLookupStore = RecentLookupStore()
     @State private var communityStore = CommunityStore()
     @State private var postAuthenticationFlow: PostAuthenticationPresentation?
@@ -76,7 +88,7 @@ struct AppRootView: View {
                 OnboardingView { hasCompletedOnboarding = true }
             } else if !session.isAuthenticated {
                 AuthFlowView {
-                    session.isAuthenticated = true
+                    session.refreshFromCurrentUser()
                     postAuthenticationFlow = PostAuthenticationPresentation(
                         requiresProfileCompletion: session.requiresProfileCompletion
                     )
@@ -86,7 +98,6 @@ struct AppRootView: View {
             }
         }
         .environment(purchaseStore)
-        .environment(contactService)
         .environment(recentLookupStore)
         .environment(communityStore)
         .fullScreenCover(item: $postAuthenticationFlow) { presentation in
@@ -94,14 +105,18 @@ struct AppRootView: View {
                 requiresProfileCompletion: presentation.requiresProfileCompletion
             ) {
                 postAuthenticationFlow = nil
-                Task { await contactService.requestAccessIfNeeded() }
             }
             .environment(purchaseStore)
         }
         .task {
             session.start()
-            await purchaseStore.start()
+            recentLookupStore.activateAccount(session.userID)
+            await purchaseStore.start(accountID: session.userID)
             await PendingVerifiedProfileStore.retryIfNeeded()
+        }
+        .onChange(of: session.userID) { _, userID in
+            recentLookupStore.activateAccount(userID)
+            Task { await purchaseStore.activateAccount(userID) }
         }
         .preferredColorScheme(.light)
     }

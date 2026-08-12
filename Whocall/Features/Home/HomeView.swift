@@ -73,7 +73,9 @@ struct HomeView: View {
             Button {
                 guard isReadyToSearch else { return }
                 dismissKeyboard()
-                onSearch(phoneNumber)
+                let numberToSearch = phoneNumber
+                phoneNumber = ""
+                onSearch(numberToSearch)
             } label: {
                 ZStack {
                     Circle()

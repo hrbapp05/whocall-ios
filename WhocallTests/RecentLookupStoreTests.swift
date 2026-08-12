@@ -9,21 +9,22 @@ final class RecentLookupStoreTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let store = RecentLookupStore(defaults: defaults)
-        let contacts = ContactService()
+        store.activateAccount("account-a")
         let owner = PhoneOwner(
-            phoneNumber: "+905061585598",
+            phoneNumber: "+905000000000",
             displayName: "Ada Yılmaz",
             firstName: "Ada",
             lastName: "Yılmaz"
         )
 
-        await store.record(owner: owner, contacts: contacts)
+        store.record(owner: owner)
 
         XCTAssertEqual(store.records.count, 1)
         XCTAssertEqual(store.records.first?.displayName, "Ada Y.")
-        XCTAssertEqual(store.records.first?.phoneNumber, "+905061585598")
+        XCTAssertEqual(store.records.first?.phoneNumber, "+905000000000")
 
         let reloaded = RecentLookupStore(defaults: defaults)
+        reloaded.activateAccount("account-a")
         XCTAssertEqual(reloaded.records.first?.displayName, "Ada Y.")
     }
 
@@ -33,28 +34,49 @@ final class RecentLookupStoreTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let store = RecentLookupStore(defaults: defaults)
-        let contacts = ContactService()
+        store.activateAccount("account-a")
 
-        await store.record(
+        store.record(
             owner: PhoneOwner(
-                phoneNumber: "+905061585598",
+                phoneNumber: "+905000000000",
                 displayName: "İlk Ad",
                 firstName: "İlk",
                 lastName: "Ad"
-            ),
-            contacts: contacts
+            )
         )
-        await store.record(
+        store.record(
             owner: PhoneOwner(
-                phoneNumber: "+905061585598",
+                phoneNumber: "+905000000000",
                 displayName: "Güncel Ad",
                 firstName: "Güncel",
                 lastName: "Ad"
-            ),
-            contacts: contacts
+            )
         )
 
         XCTAssertEqual(store.records.count, 1)
         XCTAssertEqual(store.records.first?.displayName, "Güncel A.")
+    }
+
+    func testHistoryIsIsolatedBetweenAccountsOnSameDevice() async throws {
+        let suiteName = "RecentLookupStoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = RecentLookupStore(defaults: defaults)
+        store.activateAccount("account-a")
+        store.record(
+            owner: PhoneOwner(
+                phoneNumber: "905000000000",
+                displayName: "Göktuğ Solmaz",
+                firstName: "Göktuğ",
+                lastName: "Solmaz"
+            )
+        )
+
+        store.activateAccount("account-b")
+        XCTAssertTrue(store.records.isEmpty)
+
+        store.activateAccount("account-a")
+        XCTAssertEqual(store.records.first?.displayName, "Göktuğ S.")
     }
 }
