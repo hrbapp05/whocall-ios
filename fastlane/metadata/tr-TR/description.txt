@@ -1,0 +1,14 @@
+WhoCall, bilmediğin Türkiye cep telefonu numaralarını sorgulamana ve arayan hakkında daha bilinçli karar vermene yardımcı olur.
+
+WhoCall ile:
+• Telefon numarasından ad bilgisini sorgulayabilirsin.
+• Topluluğun eklediği etiketleri ve yorumları inceleyebilirsin.
+• Rapor sayısına göre oluşturulan güven seviyesini görebilirsin.
+• Yaptığın sorgulara geçmiş ekranından yeniden ulaşabilirsin.
+• Kendi doğrulanmış numaran için görünen adını ve arama görünürlüğünü yönetebilirsin.
+
+İhtiyacına göre sorgu kredisi satın alabilir veya Premium abonelikle sınırsız sorgulamadan yararlanabilirsin. Satın alımlar Apple hesabın üzerinden güvenle gerçekleştirilir ve abonelik durumun uygulama içinden görüntülenebilir.
+
+Gizlilik yaklaşımımız gereği arama sonucunda soyadının yalnızca baş harfi gösterilir. Topluluk içeriklerinde uygunsuz ifadeleri engellemek için içerik filtresi kullanılır; rapor, yorum ve etiket araçlarıyla topluluğun daha güvenli kalmasına katkıda bulunabilirsin.
+
+WhoCall resmi bir kimlik doğrulama hizmeti değildir. Sonuçlar mevcut veri kayıtlarına, doğrulanmış kullanıcı bilgilerine ve topluluk katkılarına dayanabilir; her numara için sonuç bulunması garanti edilmez.
