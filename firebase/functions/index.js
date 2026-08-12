@@ -8,6 +8,7 @@ const {HttpsError, onCall} = require("firebase-functions/v2/https");
 const {
   containsBlockedCommunityLanguage,
   keyedDigest,
+  namesFromDisplayName,
   normalizeName,
   normalizePhone,
 } = require("./directory");
@@ -25,11 +26,23 @@ const callableOptions = {
   secrets: [hmacKey],
 };
 
-function authenticatedPhone(request) {
+async function authenticatedPhone(request) {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Telefon doğrulaması gerekli.");
   }
-  const phone = normalizePhone(request.auth.token.phone_number);
+
+  // A freshly linked phone credential can briefly be ahead of the cached ID
+  // token used by callable Functions. Prefer its claim, then safely resolve the
+  // same authenticated UID through Firebase Auth before rejecting the request.
+  let phone = normalizePhone(request.auth.token.phone_number);
+  if (!phone) {
+    try {
+      const user = await getAuth().getUser(request.auth.uid);
+      phone = normalizePhone(user.phoneNumber);
+    } catch (_error) {
+      throw new HttpsError("unauthenticated", "Oturum doğrulanamadı.");
+    }
+  }
   if (!phone) {
     throw new HttpsError("failed-precondition", "Doğrulanmış telefon numarası bulunamadı.");
   }
@@ -59,7 +72,7 @@ async function enforceRateLimit(uid, operation, limit, secret) {
 }
 
 exports.publishVerifiedProfile = onCall(callableOptions, async (request) => {
-  const phone = authenticatedPhone(request);
+  const phone = await authenticatedPhone(request);
   const firstName = normalizeName(request.data && request.data.firstName);
   const lastName = normalizeName(request.data && request.data.lastName);
   if (!firstName || !lastName) {
@@ -91,7 +104,7 @@ exports.publishVerifiedProfile = onCall(callableOptions, async (request) => {
 });
 
 exports.lookupVerifiedProfile = onCall(callableOptions, async (request) => {
-  authenticatedPhone(request);
+  await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   if (!number) {
     throw new HttpsError("invalid-argument", "Geçerli bir Türkiye GSM numarası girin.");
@@ -117,7 +130,7 @@ exports.lookupVerifiedProfile = onCall(callableOptions, async (request) => {
 });
 
 exports.unpublishVerifiedProfile = onCall(callableOptions, async (request) => {
-  const phone = authenticatedPhone(request);
+  const phone = await authenticatedPhone(request);
   const secret = hmacKey.value();
   await enforceRateLimit(request.auth.uid, "unpublish", 5, secret);
   const phoneHmac = keyedDigest(phone, secret);
@@ -133,7 +146,7 @@ exports.unpublishVerifiedProfile = onCall(callableOptions, async (request) => {
 });
 
 exports.setVerifiedProfileVisibility = onCall(callableOptions, async (request) => {
-  const phone = authenticatedPhone(request);
+  const phone = await authenticatedPhone(request);
   const isVisible = request.data && request.data.isVisible;
   if (typeof isVisible !== "boolean") {
     throw new HttpsError("invalid-argument", "Görünürlük değeri zorunludur.");
@@ -143,7 +156,26 @@ exports.setVerifiedProfileVisibility = onCall(callableOptions, async (request) =
   const phoneHmac = keyedDigest(phone, secret);
   const reference = db.collection("verifiedNumberProfiles").doc(`v1_${phoneHmac}`);
   const snapshot = await reference.get();
-  if (!snapshot.exists || snapshot.data().uid !== request.auth.uid) {
+  if (!snapshot.exists) {
+    const user = await getAuth().getUser(request.auth.uid);
+    const names = namesFromDisplayName(user.displayName);
+    if (!names) {
+      throw new HttpsError("not-found", "Yayınlanmış doğrulanmış profil bulunamadı.");
+    }
+    await reference.set({
+      uid: request.auth.uid,
+      phoneHmac,
+      firstName: names.firstName,
+      lastName: names.lastName,
+      displayName: `${names.firstName} ${names.lastName}`,
+      isVisible,
+      verifiedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      schemaVersion: 1,
+    });
+    return {published: isVisible};
+  }
+  if (snapshot.data().uid !== request.auth.uid) {
     throw new HttpsError("not-found", "Yayınlanmış doğrulanmış profil bulunamadı.");
   }
   await reference.set({
@@ -177,7 +209,7 @@ function relativeTime(createdAt) {
 }
 
 exports.getNumberCommunity = onCall(callableOptions, async (request) => {
-  authenticatedPhone(request);
+  await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   if (!number) throw new HttpsError("invalid-argument", "Geçerli bir numara girin.");
   const secret = hmacKey.value();
@@ -200,7 +232,7 @@ exports.getNumberCommunity = onCall(callableOptions, async (request) => {
 });
 
 exports.addNumberComment = onCall(callableOptions, async (request) => {
-  authenticatedPhone(request);
+  await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   const body = cleanCommunityText(request.data && request.data.body, 2, 500);
   if (!number || !body) throw new HttpsError("invalid-argument", "Geçerli numara ve yorum zorunludur.");
@@ -223,7 +255,7 @@ exports.addNumberComment = onCall(callableOptions, async (request) => {
 });
 
 exports.addNumberTag = onCall(callableOptions, async (request) => {
-  authenticatedPhone(request);
+  await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   const tag = cleanCommunityText(request.data && request.data.tag, 2, 24);
   if (!number || !tag || !/^[\p{L}\p{M}\d '&().\-]+$/u.test(tag)) {
@@ -248,7 +280,7 @@ exports.addNumberTag = onCall(callableOptions, async (request) => {
 });
 
 exports.reportNumber = onCall(callableOptions, async (request) => {
-  authenticatedPhone(request);
+  await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   const reason = cleanCommunityText(request.data && request.data.reason, 2, 80);
   const allowedReasons = new Set([

@@ -123,12 +123,25 @@ struct FirebasePhoneAuthService: AuthServicing, @unchecked Sendable {
             verificationCode: code
         )
         do {
+            let authenticatedUser: User
             if let currentUser = Auth.auth().currentUser, currentUser.phoneNumber == nil {
-                _ = try await currentUser.link(with: credential)
+                authenticatedUser = try await currentUser.link(with: credential).user
             } else {
-                _ = try await Auth.auth().signIn(with: credential)
+                authenticatedUser = try await Auth.auth().signIn(with: credential).user
             }
+
+            // Callable Functions receive the cached Firebase ID token. Refresh it
+            // immediately after OTP so its phone_number claim is available before
+            // reporting, tagging, comments and directory operations begin.
+            try await authenticatedUser.reload()
+            guard let verifiedUser = Auth.auth().currentUser,
+                  verifiedUser.uid == authenticatedUser.uid,
+                  verifiedUser.phoneNumber?.isEmpty == false else {
+                throw AuthError.verificationFailed
+            }
+            _ = try await verifiedUser.getIDToken(forcingRefresh: true)
         } catch {
+            if let authError = error as? AuthError { throw authError }
             throw Self.localized(error)
         }
     }

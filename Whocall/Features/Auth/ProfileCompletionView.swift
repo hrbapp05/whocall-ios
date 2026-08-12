@@ -34,15 +34,9 @@ struct ProfileCompletionView: View {
 
                 Spacer()
 
-                Image("LoginAppIcon")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 118, height: 118)
-                    .popEntrance(delay: 0.05, initialScale: 0.35)
-
                 Text("Sizi Tanıyalım")
                     .font(.system(size: 28, weight: .bold))
-                    .padding(.top, 22)
+                    .figmaEntrance(delay: 0.05, distance: 12)
 
                 Text("Doğruladığınız numara sorgulandığında göstermek üzere adınızı ve soyadınızı girin.")
                     .font(.subheadline)
@@ -57,6 +51,7 @@ struct ProfileCompletionView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 28)
+                .figmaEntrance(delay: 0.12, distance: 14)
 
                 if let errorMessage {
                     Text(errorMessage)

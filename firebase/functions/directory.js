@@ -28,6 +28,15 @@ function normalizeName(value) {
   return normalized;
 }
 
+function namesFromDisplayName(value) {
+  if (typeof value !== "string") return null;
+  const parts = value.trim().replace(/\s+/g, " ").split(" ");
+  if (parts.length < 2) return null;
+  const firstName = normalizeName(parts[0]);
+  const lastName = normalizeName(parts.slice(1).join(" "));
+  return firstName && lastName ? {firstName, lastName} : null;
+}
+
 function keyedDigest(value, secret) {
   return createHmac("sha256", secret).update(value, "utf8").digest("hex");
 }
@@ -58,6 +67,7 @@ function containsBlockedCommunityLanguage(value) {
 module.exports = {
   containsBlockedCommunityLanguage,
   keyedDigest,
+  namesFromDisplayName,
   normalizeForModeration,
   normalizeName,
   normalizePhone,

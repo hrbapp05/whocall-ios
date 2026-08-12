@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const {
   containsBlockedCommunityLanguage,
   keyedDigest,
+  namesFromDisplayName,
   normalizeName,
   normalizePhone,
 } = require("../directory");
@@ -24,6 +25,18 @@ test("accepts Turkish names and rejects markup", () => {
   assert.equal(normalizeName("  Göktuğ  "), "Göktuğ");
   assert.equal(normalizeName("Nur-Su"), "Nur-Su");
   assert.equal(normalizeName("<script>"), null);
+});
+
+test("splits a verified display name for lazy directory publication", () => {
+  assert.deepEqual(namesFromDisplayName(" Göktuğ Solmaz "), {
+    firstName: "Göktuğ",
+    lastName: "Solmaz",
+  });
+  assert.deepEqual(namesFromDisplayName("Ayşe Nur Yılmaz"), {
+    firstName: "Ayşe",
+    lastName: "Nur Yılmaz",
+  });
+  assert.equal(namesFromDisplayName("Tekad"), null);
 });
 
 test("uses a keyed digest instead of a plain phone hash", () => {

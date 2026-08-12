@@ -85,6 +85,9 @@ final class AppSession {
                 return false
             }
 
+            // Keep callable Functions in sync with a phone credential that may
+            // have been linked during the immediately preceding OTP flow.
+            _ = try await currentUser.getIDToken(forcingRefresh: true)
             isAuthenticated = true
             isResolvingAuthentication = false
             userID = currentUser.uid
@@ -182,10 +185,14 @@ struct AppRootView: View {
             recentLookupStore.activateAccount(session.userID)
             await purchaseStore.start(accountID: session.userID)
             await PendingVerifiedProfileStore.retryIfNeeded()
+            await CurrentVerifiedProfileSynchronizer.synchronize()
         }
         .onChange(of: session.userID) { _, userID in
             recentLookupStore.activateAccount(userID)
-            Task { await purchaseStore.activateAccount(userID) }
+            Task {
+                await purchaseStore.activateAccount(userID)
+                await CurrentVerifiedProfileSynchronizer.synchronize()
+            }
         }
         .preferredColorScheme(.light)
     }

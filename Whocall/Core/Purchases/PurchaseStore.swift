@@ -263,8 +263,9 @@ final class PurchaseStore {
     }
 
     private func apply(_ customerInfo: CustomerInfo) {
-        isPremium = customerInfo.entitlements[Self.premiumEntitlementID]?.isActive == true ||
-            !customerInfo.activeSubscriptions.isEmpty
+        // Consumable credit products must never unlock unlimited lookups. RevenueCat's
+        // dedicated entitlement is the only source of truth for Premium access.
+        isPremium = customerInfo.entitlements[Self.premiumEntitlementID]?.isActive == true
         subscriptionManagementURL = customerInfo.managementURL
 
         subscriptionHistory = customerInfo.subscriptionsByProductIdentifier.values

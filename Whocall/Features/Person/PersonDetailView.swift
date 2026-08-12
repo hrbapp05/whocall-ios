@@ -27,21 +27,14 @@ struct PersonDetailView: View {
                     .padding(.bottom, 28)
                     .figmaEntrance(delay: 0.2, distance: 16)
             }
+            .frame(maxWidth: .infinity, minHeight: 740, alignment: .top)
             .background(
                 Color(.systemBackground),
                 in: .rect(topLeadingRadius: 42, topTrailingRadius: 42)
             )
-            .padding(.top, 34)
-            .frame(maxWidth: .infinity, minHeight: 760, alignment: .top)
+            .padding(.top, 60)
         }
-        .background(alignment: .top) {
-            ZStack(alignment: .top) {
-                Color(.systemBackground).ignoresSafeArea()
-                Color(.systemGroupedBackground)
-                    .frame(height: 115)
-                    .ignoresSafeArea(edges: .top)
-            }
-        }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Kişi Kartı")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

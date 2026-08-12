@@ -115,3 +115,43 @@ enum PendingVerifiedProfileStore {
         UserDefaults.standard.removeObject(forKey: lastNameKey)
     }
 }
+
+enum CurrentVerifiedProfileSynchronizer {
+    /// Reconciles profiles created by earlier builds after Firebase Auth has
+    /// refreshed the verified phone session. This makes the same directory
+    /// result available to every signed-in account without using device-local
+    /// contact data or exposing hidden profiles.
+    @MainActor
+    static func synchronize() async {
+        let profile = ProfileServiceFactory.live()
+        guard let userID = profile.currentUserID,
+              profile.currentPhoneNumber?.isEmpty == false,
+              let displayName = profile.currentDisplayName else { return }
+
+        let parts = displayName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+        guard let firstName = parts.first, parts.count >= 2 else { return }
+        let lastName = parts.dropFirst().joined(separator: " ")
+        let isVisible = ProfileVisibilityPreference.isVisible(userID: userID)
+
+        do {
+            if isVisible {
+                try await VerifiedNumberDirectoryFactory.live().publishOwnProfile(
+                    firstName: String(firstName),
+                    lastName: lastName
+                )
+            } else {
+                try await VerifiedNumberDirectoryFactory.live().setOwnProfileVisibility(false)
+            }
+            PendingVerifiedProfileStore.clear()
+        } catch {
+            if isVisible {
+                PendingVerifiedProfileStore.save(
+                    firstName: String(firstName),
+                    lastName: lastName
+                )
+            }
+        }
+    }
+}
