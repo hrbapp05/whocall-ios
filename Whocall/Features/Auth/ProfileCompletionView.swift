@@ -19,69 +19,76 @@ struct ProfileCompletionView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Image("WhoCallLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 124, height: 26)
-                .padding(.top, 34)
+        ZStack {
+            DesignTokens.ColorToken.background
+                .ignoresSafeArea()
+                .contentShape(.rect)
+                .onTapGesture { focusedField = nil }
 
-            Spacer()
+            VStack(spacing: 0) {
+                Image("WhoCallLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 124, height: 26)
+                    .padding(.top, 34)
 
-            Image("LoginAppIcon")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 118, height: 118)
-                .popEntrance(delay: 0.05, initialScale: 0.35)
+                Spacer()
 
-            Text("Sizi Tanıyalım")
-                .font(.system(size: 28, weight: .bold))
-                .padding(.top, 22)
+                Image("LoginAppIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 118, height: 118)
+                    .popEntrance(delay: 0.05, initialScale: 0.35)
 
-            Text("Doğruladığınız numara sorgulandığında göstermek üzere adınızı ve soyadınızı girin.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-                .padding(.top, 8)
+                Text("Sizi Tanıyalım")
+                    .font(.system(size: 28, weight: .bold))
+                    .padding(.top, 22)
 
-            VStack(spacing: 14) {
-                profileField("Adınız", text: $firstName, contentType: .givenName, field: .firstName)
-                profileField("Soyadınız", text: $lastName, contentType: .familyName, field: .lastName)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 28)
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                Text("Doğruladığınız numara sorgulandığında göstermek üzere adınızı ve soyadınızı girin.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 28)
-                    .padding(.top, 12)
-            }
+                    .padding(.horizontal, 32)
+                    .padding(.top, 8)
 
-            Button {
-                Task { await save() }
-            } label: {
-                Group {
-                    if isSaving {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("Devam Et")
-                    }
+                VStack(spacing: 14) {
+                    profileField("Adınız", text: $firstName, contentType: .givenName, field: .firstName)
+                    profileField("Soyadınız", text: $lastName, contentType: .familyName, field: .lastName)
                 }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .disabled(!isValid || isSaving)
-            .opacity(isValid ? 1 : 0.46)
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
+                .padding(.horizontal, 24)
+                .padding(.top, 28)
 
-            Spacer()
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 28)
+                        .padding(.top, 12)
+                }
+
+                Button {
+                    focusedField = nil
+                    Task { await save() }
+                } label: {
+                    Group {
+                        if isSaving {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("Devam Et")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(!isValid || isSaving)
+                .opacity(isValid ? 1 : 0.46)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+
+                Spacer()
+            }
         }
-        .background(DesignTokens.ColorToken.background.ignoresSafeArea())
         .interactiveDismissDisabled()
         .task { focusedField = .firstName }
     }

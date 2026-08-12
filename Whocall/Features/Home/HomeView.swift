@@ -5,6 +5,7 @@ struct HomeView: View {
     let onSearch: (String) -> Void
     let onRecord: (SearchRecord) -> Void
     let onPremium: () -> Void
+    @FocusState private var isSearchFocused: Bool
     @State private var phoneNumber = ""
 
     var body: some View {
@@ -72,6 +73,7 @@ struct HomeView: View {
             .padding(20)
         }
         .background(Color(uiColor: .systemGroupedBackground))
+        .scrollDismissesKeyboard(.interactively)
         .toolbar(.hidden, for: .navigationBar)
     }
 
@@ -80,7 +82,11 @@ struct HomeView: View {
             Image("TurkeyFlag").resizable().frame(width: 24, height: 24)
             TextField("Numara Tuşla", text: $phoneNumber)
                 .keyboardType(.phonePad)
-            Button { onSearch(phoneNumber) } label: { Image(systemName: "magnifyingglass") }
+                .focused($isSearchFocused)
+            Button {
+                isSearchFocused = false
+                onSearch(phoneNumber)
+            } label: { Image(systemName: "magnifyingglass") }
                 .disabled(phoneNumber.filter(\.isNumber).count < 10)
         }
         .padding()

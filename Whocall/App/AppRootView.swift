@@ -132,6 +132,13 @@ private struct UITestShowcaseView: View {
             case "onboarding2": OnboardingView(initialPage: .scan, onComplete: {})
             case "onboarding3": OnboardingView(initialPage: .details, onComplete: {})
             case "login": LoginView()
+            case "phone": PhoneEntryView(onAuthenticated: {}, authService: DevelopmentAuthService())
+            case "otp": OTPView(
+                verificationID: "development-verification",
+                phoneNumber: "+905065055555",
+                onAuthenticated: {},
+                authService: DevelopmentAuthService()
+            )
             case "premium": PremiumView()
             case "credits": CreditsView()
             case "scanning": LookupProgressView(number: "5065055555", onResult: { _ in })

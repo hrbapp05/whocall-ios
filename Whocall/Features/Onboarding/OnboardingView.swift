@@ -66,7 +66,10 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .lineSpacing(-2)
                 .foregroundStyle(DesignTokens.ColorToken.primary)
-                .frame(width: 362, height: 67, alignment: .center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.9)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 362, alignment: .center)
                 .position(x: 201, y: 651.5)
                 .figmaEntrance(delay: 0.16, distance: 12)
 
