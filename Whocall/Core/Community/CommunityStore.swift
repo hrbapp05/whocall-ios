@@ -126,8 +126,7 @@ final class CommunityStore {
         isLoading = true
         defer { isLoading = false }
         do {
-            try await refreshVerifiedPhoneSession()
-            let result = try await functions.httpsCallable("getNumberCommunity").call([
+            let result = try await callAuthenticated("getNumberCommunity", data: [
                 "number": phoneNumber,
             ])
             guard let payload = result.data as? [String: Any] else {
@@ -154,8 +153,7 @@ final class CommunityStore {
 #if canImport(FirebaseFunctions)
         if FirebaseApp.app() != nil {
             do {
-                try await refreshVerifiedPhoneSession()
-                _ = try await functions.httpsCallable("addNumberComment").call([
+                _ = try await callAuthenticated("addNumberComment", data: [
                     "number": phoneNumber,
                     "body": cleanBody,
                     "author": safeAuthor,
@@ -163,7 +161,13 @@ final class CommunityStore {
             } catch {
                 throw localized(error)
             }
-            await refresh(for: phoneNumber)
+            let entry = Comment(
+                initial: String(safeAuthor.prefix(1)).uppercased(with: Locale(identifier: "tr_TR")),
+                author: safeAuthor,
+                body: cleanBody,
+                time: "Şimdi"
+            )
+            localComments[canonical(phoneNumber), default: []].insert(entry, at: 0)
             return
         }
 #endif
@@ -189,32 +193,26 @@ final class CommunityStore {
 #if canImport(FirebaseFunctions)
         if FirebaseApp.app() != nil {
             do {
-                try await refreshVerifiedPhoneSession()
-                _ = try await functions.httpsCallable("addNumberTag").call([
+                _ = try await callAuthenticated("addNumberTag", data: [
                     "number": phoneNumber,
                     "tag": cleanTitle,
                 ])
             } catch {
                 throw localized(error)
             }
-            await refresh(for: phoneNumber)
+            insertLocalTag(cleanTitle, for: phoneNumber)
             return
         }
 #endif
 
-        let key = canonical(phoneNumber)
-        if !localTags[key, default: []].contains(where: { $0.caseInsensitiveCompare(cleanTitle) == .orderedSame }) {
-            localTags[key, default: []].append(cleanTitle)
-            localTags[key]?.sort(by: localizedSort)
-        }
+        insertLocalTag(cleanTitle, for: phoneNumber)
     }
 
     func report(phoneNumber: String, reason: String) async throws {
 #if canImport(FirebaseFunctions)
         guard FirebaseApp.app() != nil else { throw CommunityStoreError.serviceUnavailable }
         do {
-            try await refreshVerifiedPhoneSession()
-            let result = try await functions.httpsCallable("reportNumber").call([
+            let result = try await callAuthenticated("reportNumber", data: [
                 "number": phoneNumber,
                 "reason": reason,
             ])
@@ -237,20 +235,34 @@ final class CommunityStore {
 #endif
     }
 
-    private func refreshVerifiedPhoneSession() async throws {
+#if canImport(FirebaseFunctions)
+    private func callAuthenticated(_ name: String, data: [String: String]) async throws -> HTTPSCallableResult {
+        try await prepareVerifiedPhoneSession(forceRefresh: false)
+        do {
+            return try await functions.httpsCallable(name).call(data)
+        } catch {
+            guard isAuthenticationError(error) else { throw error }
+            try await prepareVerifiedPhoneSession(forceRefresh: true)
+            return try await functions.httpsCallable(name).call(data)
+        }
+    }
+
+    private func prepareVerifiedPhoneSession(forceRefresh: Bool) async throws {
 #if canImport(FirebaseAuth)
         guard FirebaseApp.app() != nil, let candidate = Auth.auth().currentUser else {
             throw CommunityStoreError.authenticationRequired
         }
 
         do {
-            try await candidate.reload()
+            if forceRefresh {
+                try await candidate.reload()
+            }
             guard let user = Auth.auth().currentUser,
                   user.uid == candidate.uid,
                   user.phoneNumber?.isEmpty == false else {
                 throw CommunityStoreError.authenticationRequired
             }
-            _ = try await user.getIDToken(forcingRefresh: true)
+            _ = try await user.getIDToken(forcingRefresh: forceRefresh)
         } catch let error as CommunityStoreError {
             throw error
         } catch {
@@ -262,6 +274,22 @@ final class CommunityStore {
 #else
         throw CommunityStoreError.authenticationRequired
 #endif
+    }
+
+    private func isAuthenticationError(_ error: Error) -> Bool {
+        let value = error as NSError
+        guard value.domain == FunctionsErrorDomain,
+              let code = FunctionsErrorCode(rawValue: value.code) else { return false }
+        return code == .unauthenticated || code == .failedPrecondition
+    }
+#endif
+
+    private func insertLocalTag(_ title: String, for phoneNumber: String) {
+        let key = canonical(phoneNumber)
+        if !localTags[key, default: []].contains(where: { $0.caseInsensitiveCompare(title) == .orderedSame }) {
+            localTags[key, default: []].append(title)
+            localTags[key]?.sort(by: localizedSort)
+        }
     }
 
     private func parseComments(_ values: [[String: Any]]) -> [Comment] {

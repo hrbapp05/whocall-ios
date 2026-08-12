@@ -14,14 +14,13 @@ final class VerifiedNumberDirectoryTests: XCTestCase {
             config: APIConfig(baseURL: URL(string: "http://127.0.0.1:1")!, apiKey: "")
         )
         let service = PhoneLookupService(
-            directory: StubVerifiedDirectory(owner: verified),
+            directory: StubVerifiedDirectory(result: .found(verified)),
             apiClient: api
         )
 
         let result = try await service.lookup(number: "5000000000")
 
-        XCTAssertEqual(result, verified.privacySafe)
-        XCTAssertEqual(result.displayName, "Doğrulanmış K.")
+        XCTAssertEqual(result, .found(verified.privacySafe))
     }
 
     func testLegacyAPIRunsWhenNumberHasNoVerifiedProfile() async throws {
@@ -34,11 +33,12 @@ final class VerifiedNumberDirectoryTests: XCTestCase {
         StubURLProtocol.responseData = Data(
             #"{"success":true,"data":{"phoneNumber":"905391112233","displayName":"Veritabanı Sonucu","firstName":"Veritabanı","lastName":"Sonucu"}}"#.utf8
         )
+        StubURLProtocol.statusCode = 200
 
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         let service = PhoneLookupService(
-            directory: StubVerifiedDirectory(owner: nil),
+            directory: StubVerifiedDirectory(result: .notRegistered),
             apiClient: WhoCallAPIClient(
                 config: APIConfig(baseURL: URL(string: "https://whocallapp.online")!, apiKey: "test-key"),
                 session: URLSession(configuration: configuration)
@@ -47,24 +47,57 @@ final class VerifiedNumberDirectoryTests: XCTestCase {
 
         let result = try await service.lookup(number: "5391112233")
 
-        XCTAssertEqual(result, apiOwner.privacySafe)
-        XCTAssertEqual(result.displayName, "Veritabanı S.")
+        XCTAssertEqual(result, .found(apiOwner.privacySafe))
+    }
+
+    func testHiddenProfileDoesNotFallThroughToLegacyAPI() async throws {
+        let service = PhoneLookupService(
+            directory: StubVerifiedDirectory(result: .hidden),
+            apiClient: WhoCallAPIClient(
+                config: APIConfig(baseURL: URL(string: "http://127.0.0.1:1")!, apiKey: "")
+            )
+        )
+
+        let result = try await service.lookup(number: "5061585598")
+
+        XCTAssertEqual(result, .hidden)
+    }
+
+    func testMissingLegacyRecordReturnsNotFoundOutcome() async throws {
+        StubURLProtocol.responseData = Data(
+            #"{"success":false,"error":{"code":"PHONE_NOT_FOUND","message":"Phone number was not found."},"requestId":"018f47a2-7b22-4a29-8a3f-f6419dbbc101"}"#.utf8
+        )
+        StubURLProtocol.statusCode = 404
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let service = PhoneLookupService(
+            directory: StubVerifiedDirectory(result: .notRegistered),
+            apiClient: WhoCallAPIClient(
+                config: APIConfig(baseURL: URL(string: "https://whocallapp.online")!, apiKey: "test-key"),
+                session: URLSession(configuration: configuration)
+            )
+        )
+
+        let result = try await service.lookup(number: "5555555555")
+
+        XCTAssertEqual(result, .notFound)
     }
 }
 
 @MainActor
 private struct StubVerifiedDirectory: VerifiedNumberDirectoryServicing {
-    let owner: PhoneOwner?
+    let result: VerifiedNumberDirectoryLookup
 
     func publishOwnProfile(firstName: String, lastName: String) async throws {}
     func setOwnProfileVisibility(_ isVisible: Bool) async throws {}
     func lookup(number: String) async throws -> VerifiedNumberDirectoryLookup {
-        owner.map(VerifiedNumberDirectoryLookup.found) ?? .notRegistered
+        result
     }
 }
 
 private final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var responseData = Data()
+    nonisolated(unsafe) static var statusCode = 200
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -73,7 +106,7 @@ private final class StubURLProtocol: URLProtocol {
         guard let url = request.url,
               let response = HTTPURLResponse(
                 url: url,
-                statusCode: 200,
+                statusCode: Self.statusCode,
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]
               ) else {

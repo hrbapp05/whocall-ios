@@ -25,17 +25,21 @@ struct HomeFlowView: View {
         case let .lookup(number):
             LookupProgressView(
                 number: number,
-                onResult: { owner in
-                    guard purchaseStore.authorizeLookupResult() else {
-                        if !path.isEmpty { path.removeLast() }
-                        path.append(.premium)
-                        return
+                onOutcome: { outcome in
+                    switch outcome {
+                    case let .found(owner):
+                        guard purchaseStore.authorizeLookupResult() else {
+                            if !path.isEmpty { path.removeLast() }
+                            path.append(.premium)
+                            return
+                        }
+                        recentLookupStore.record(owner: owner)
+                        replaceLookup(with: .result(owner))
+                    case .hidden:
+                        replaceLookup(with: .unavailable(.hidden, number))
+                    case .notFound:
+                        replaceLookup(with: .unavailable(.notFound, number))
                     }
-                    recentLookupStore.record(owner: owner)
-                    // Replace the progress screen so the result's Back button
-                    // returns directly to Home instead of replaying the scan.
-                    if !path.isEmpty { path.removeLast() }
-                    path.append(.result(owner))
                 },
                 onCredits: { path.append(.credits) }
             )
@@ -56,11 +60,23 @@ struct HomeFlowView: View {
             )
         case let .comments(name, number, startsComposing):
             CommentsView(personName: name, phoneNumber: number, startsComposing: startsComposing)
+        case let .unavailable(reason, number):
+            LookupUnavailableView(
+                reason: reason,
+                number: number,
+                onNewLookup: { path.removeAll() }
+            )
         case .premium:
             PremiumView()
         case .credits:
             CreditsView()
         }
+    }
+
+    private func replaceLookup(with route: HomeRoute) {
+        // Replace the progress screen so Back never replays the scanner.
+        if !path.isEmpty { path.removeLast() }
+        path.append(route)
     }
 }
 
@@ -69,6 +85,7 @@ enum HomeRoute: Hashable {
     case result(PhoneOwner)
     case person(String, String)
     case comments(String, String, Bool)
+    case unavailable(LookupUnavailableReason, String)
     case premium
     case credits
 }

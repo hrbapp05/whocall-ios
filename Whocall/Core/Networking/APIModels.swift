@@ -27,6 +27,12 @@ struct PhoneOwner: Decodable, Equatable, Hashable, Sendable {
     }
 }
 
+enum PhoneLookupOutcome: Equatable, Sendable {
+    case found(PhoneOwner)
+    case hidden
+    case notFound
+}
+
 enum PersonNameFormatter {
     private static let turkishLocale = Locale(identifier: "tr_TR")
 

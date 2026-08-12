@@ -8,11 +8,14 @@ final class LookupModel {
     var errorMessage: String?
     private let lookupService = PhoneLookupService()
 
-    func lookup(number: String) async -> PhoneOwner? {
+    func lookup(number: String) async -> PhoneLookupOutcome? {
+        errorMessage = nil
         do {
             return try await lookupService.lookup(number: number)
+        } catch is CancellationError {
+            return nil
         } catch {
-            errorMessage = "Sorgu tamamlanamadı. API anahtarının yerel build ayarına eklendiğini kontrol edin."
+            errorMessage = "Sorgu şu anda tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin."
             return nil
         }
     }
@@ -21,17 +24,18 @@ final class LookupModel {
 struct LookupProgressView: View {
     @Environment(\.dismiss) private var dismiss
     let number: String
-    let onResult: (PhoneOwner) -> Void
+    let onOutcome: (PhoneLookupOutcome) -> Void
     let onCredits: () -> Void
     @State private var model = LookupModel()
+    @State private var lookupAttempt = 0
 
     init(
         number: String,
-        onResult: @escaping (PhoneOwner) -> Void,
+        onOutcome: @escaping (PhoneLookupOutcome) -> Void,
         onCredits: @escaping () -> Void = {}
     ) {
         self.number = number
-        self.onResult = onResult
+        self.onOutcome = onOutcome
         self.onCredits = onCredits
     }
 
@@ -61,8 +65,13 @@ struct LookupProgressView: View {
 
             Spacer(minLength: 24)
 
-            infoCard
-                .padding(.horizontal, 20)
+            if let errorMessage = model.errorMessage {
+                errorCard(errorMessage)
+                    .padding(.horizontal, 20)
+            } else {
+                infoCard
+                    .padding(.horizontal, 20)
+            }
 
             Button("Sorguyu İptal Et") { dismiss() }
                 .buttonStyle(PrimaryButtonStyle())
@@ -73,7 +82,7 @@ struct LookupProgressView: View {
         .background(DesignTokens.ColorToken.brandBlue.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .task { await beginLookup() }
+        .task(id: lookupAttempt) { await beginLookup() }
     }
 
     private var customHeader: some View {
@@ -164,20 +173,38 @@ struct LookupProgressView: View {
         .figmaEntrance(delay: 0.24, distance: 14)
     }
 
+    private func errorCard(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Label(message, systemImage: "wifi.exclamationmark")
+                .font(.subheadline.weight(.medium))
+                .multilineTextAlignment(.center)
+            Button("Tekrar Dene") {
+                model.phase = 0
+                lookupAttempt += 1
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(DesignTokens.ColorToken.brandBlue)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 84)
+        .background(.white, in: .rect(cornerRadius: 18))
+    }
+
     @MainActor
     private func beginLookup() async {
+        model.errorMessage = nil
         withAnimation { model.phase = 1 }
         try? await Task.sleep(for: .milliseconds(750))
         guard !Task.isCancelled else { return }
         withAnimation { model.phase = 2 }
         async let lookupResult = model.lookup(number: number)
         try? await Task.sleep(for: .milliseconds(1_000))
-        if let owner = await lookupResult {
+        if let outcome = await lookupResult {
             guard !Task.isCancelled else { return }
             withAnimation { model.phase = 3 }
             try? await Task.sleep(for: .milliseconds(900))
             guard !Task.isCancelled else { return }
-            onResult(owner)
+            onOutcome(outcome)
         }
     }
 }
