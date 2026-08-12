@@ -6,6 +6,10 @@ import Observation
 import FirebaseCore
 #endif
 
+#if canImport(FirebaseAuth)
+@preconcurrency import FirebaseAuth
+#endif
+
 struct Comment: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let initial: String
@@ -122,6 +126,7 @@ final class CommunityStore {
         isLoading = true
         defer { isLoading = false }
         do {
+            try await refreshVerifiedPhoneSession()
             let result = try await functions.httpsCallable("getNumberCommunity").call([
                 "number": phoneNumber,
             ])
@@ -149,6 +154,7 @@ final class CommunityStore {
 #if canImport(FirebaseFunctions)
         if FirebaseApp.app() != nil {
             do {
+                try await refreshVerifiedPhoneSession()
                 _ = try await functions.httpsCallable("addNumberComment").call([
                     "number": phoneNumber,
                     "body": cleanBody,
@@ -183,6 +189,7 @@ final class CommunityStore {
 #if canImport(FirebaseFunctions)
         if FirebaseApp.app() != nil {
             do {
+                try await refreshVerifiedPhoneSession()
                 _ = try await functions.httpsCallable("addNumberTag").call([
                     "number": phoneNumber,
                     "tag": cleanTitle,
@@ -206,6 +213,7 @@ final class CommunityStore {
 #if canImport(FirebaseFunctions)
         guard FirebaseApp.app() != nil else { throw CommunityStoreError.serviceUnavailable }
         do {
+            try await refreshVerifiedPhoneSession()
             let result = try await functions.httpsCallable("reportNumber").call([
                 "number": phoneNumber,
                 "reason": reason,
@@ -226,6 +234,33 @@ final class CommunityStore {
         Functions.functions(region: "europe-west1")
 #else
         fatalError("Firebase Functions is unavailable")
+#endif
+    }
+
+    private func refreshVerifiedPhoneSession() async throws {
+#if canImport(FirebaseAuth)
+        guard FirebaseApp.app() != nil, let candidate = Auth.auth().currentUser else {
+            throw CommunityStoreError.authenticationRequired
+        }
+
+        do {
+            try await candidate.reload()
+            guard let user = Auth.auth().currentUser,
+                  user.uid == candidate.uid,
+                  user.phoneNumber?.isEmpty == false else {
+                throw CommunityStoreError.authenticationRequired
+            }
+            _ = try await user.getIDToken(forcingRefresh: true)
+        } catch let error as CommunityStoreError {
+            throw error
+        } catch {
+            let mapped = FirebasePhoneAuthService.localized(error)
+            throw mapped == .networkUnavailable
+                ? CommunityStoreError.serviceUnavailable
+                : CommunityStoreError.authenticationRequired
+        }
+#else
+        throw CommunityStoreError.authenticationRequired
 #endif
     }
 

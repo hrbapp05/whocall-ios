@@ -142,7 +142,7 @@ struct ProfileView: View {
 
     private func verifyPhoneNumber() {
         if let phoneNumber {
-            verificationMessage = "\(formattedPhoneNumber(phoneNumber)) numarası Firebase SMS doğrulamasıyla onaylanmış durumda."
+            verificationMessage = "\(formattedPhoneNumber(phoneNumber)) numarası SMS doğrulamasıyla onaylanmış durumda."
         } else {
             isPhoneVerificationPresented = true
         }

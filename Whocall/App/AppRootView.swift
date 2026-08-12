@@ -41,17 +41,21 @@ final class AppSession {
             authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
                 Task { @MainActor in
                     guard let self else { return }
-                    guard user != nil else {
+                    guard let user else {
                         self.clearAuthentication()
                         return
                     }
 
-                    // A cached Firebase user is not enough to unlock the app. New
-                    // sign-ins are accepted only after the server-backed reload below.
-                    if user?.uid != self.userID {
+                    // The first callback contains Firebase's cached user and can
+                    // arrive while the server-backed validation below is running.
+                    // Keep the loading state visible instead of briefly routing to
+                    // the welcome screen. OTP completion validates new users through
+                    // the explicit onAuthenticated callback.
+                    if let userID = self.userID, user.uid != userID {
                         self.isAuthenticated = false
                         self.userID = nil
-                        self.isResolvingAuthentication = false
+                        self.isResolvingAuthentication = true
+                        _ = await self.refreshValidatedCurrentUser()
                     }
                 }
             }
@@ -160,8 +164,11 @@ struct AppRootView: View {
                 AuthFlowView {
                     Task {
                         guard await session.refreshValidatedCurrentUser() else { return }
-                        postAuthenticationFlow = PostAuthenticationPresentation(
-                            requiresProfileCompletion: session.requiresProfileCompletion
+                        await purchaseStore.activateAccount(session.userID)
+                        await purchaseStore.refreshCustomerInfo()
+                        postAuthenticationFlow = PostAuthenticationPresentation.make(
+                            requiresProfileCompletion: session.requiresProfileCompletion,
+                            isPremium: purchaseStore.isPremium
                         )
                     }
                 }
@@ -174,7 +181,8 @@ struct AppRootView: View {
         .environment(communityStore)
         .fullScreenCover(item: $postAuthenticationFlow) { presentation in
             PostAuthenticationFlowView(
-                requiresProfileCompletion: presentation.requiresProfileCompletion
+                requiresProfileCompletion: presentation.requiresProfileCompletion,
+                showsPaywall: presentation.showsPaywall
             ) {
                 postAuthenticationFlow = nil
             }
@@ -210,9 +218,19 @@ struct AppRootView: View {
     }
 }
 
-private struct PostAuthenticationPresentation: Identifiable {
+struct PostAuthenticationPresentation: Identifiable, Equatable {
     let id = UUID()
     let requiresProfileCompletion: Bool
+    let showsPaywall: Bool
+
+    static func make(requiresProfileCompletion: Bool, isPremium: Bool) -> Self? {
+        let showsPaywall = !isPremium
+        guard showsPaywall || requiresProfileCompletion else { return nil }
+        return Self(
+            requiresProfileCompletion: requiresProfileCompletion,
+            showsPaywall: showsPaywall
+        )
+    }
 }
 
 private struct UITestShowcaseView: View {
