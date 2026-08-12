@@ -8,6 +8,7 @@ const {
   namesFromDisplayName,
   normalizeName,
   normalizePhone,
+  publicProfileFromAuthUser,
 } = require("../directory");
 
 test("normalizes supported Turkish mobile formats", () => {
@@ -37,6 +38,22 @@ test("splits a verified display name for lazy directory publication", () => {
     lastName: "Nur Yılmaz",
   });
   assert.equal(namesFromDisplayName("Tekad"), null);
+});
+
+test("builds a public lookup owner from a verified Firebase Auth user", () => {
+  assert.deepEqual(
+      publicProfileFromAuthUser({displayName: "Göktuğ Solmaz", disabled: false}, "905061585598"),
+      {
+        phoneNumber: "905061585598",
+        displayName: "Göktuğ Solmaz",
+        firstName: "Göktuğ",
+        lastName: "Solmaz",
+      },
+  );
+  assert.equal(
+      publicProfileFromAuthUser({displayName: "Göktuğ Solmaz", disabled: true}, "905061585598"),
+      null,
+  );
 });
 
 test("uses a keyed digest instead of a plain phone hash", () => {

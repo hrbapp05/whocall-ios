@@ -37,6 +37,18 @@ function namesFromDisplayName(value) {
   return firstName && lastName ? {firstName, lastName} : null;
 }
 
+function publicProfileFromAuthUser(user, phoneNumber) {
+  if (!user || user.disabled) return null;
+  const names = namesFromDisplayName(user.displayName);
+  if (!names) return null;
+  return {
+    phoneNumber,
+    displayName: `${names.firstName} ${names.lastName}`,
+    firstName: names.firstName,
+    lastName: names.lastName,
+  };
+}
+
 function keyedDigest(value, secret) {
   return createHmac("sha256", secret).update(value, "utf8").digest("hex");
 }
@@ -68,6 +80,7 @@ module.exports = {
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
+  publicProfileFromAuthUser,
   normalizeForModeration,
   normalizeName,
   normalizePhone,

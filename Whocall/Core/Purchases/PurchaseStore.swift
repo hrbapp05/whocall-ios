@@ -12,6 +12,10 @@ enum RevenueCatProductID: String, CaseIterable, Sendable {
     static let premium: [Self] = [.premiumWeekly, .premiumMonthly]
     static let credits: [Self] = [.credits3, .credits5, .credits10]
 
+    static func unlocksPremium(productIdentifier: String) -> Bool {
+        premium.contains { $0.rawValue == productIdentifier }
+    }
+
     var creditAmount: Int? {
         switch self {
         case .credits3: 3
@@ -263,9 +267,16 @@ final class PurchaseStore {
     }
 
     private func apply(_ customerInfo: CustomerInfo) {
-        // Consumable credit products must never unlock unlimited lookups. RevenueCat's
-        // dedicated entitlement is the only source of truth for Premium access.
-        isPremium = customerInfo.entitlements[Self.premiumEntitlementID]?.isActive == true
+        // RevenueCat can expose a mistakenly attached entitlement for a consumable.
+        // Unlimited access is therefore valid only when the active entitlement was
+        // granted by one of WhoCall's weekly/monthly subscription products.
+        if let entitlement = customerInfo.entitlements[Self.premiumEntitlementID] {
+            isPremium = entitlement.isActive && RevenueCatProductID.unlocksPremium(
+                productIdentifier: entitlement.productIdentifier
+            )
+        } else {
+            isPremium = false
+        }
         subscriptionManagementURL = customerInfo.managementURL
 
         subscriptionHistory = customerInfo.subscriptionsByProductIdentifier.values

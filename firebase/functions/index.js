@@ -11,6 +11,7 @@ const {
   namesFromDisplayName,
   normalizeName,
   normalizePhone,
+  publicProfileFromAuthUser,
 } = require("./directory");
 
 initializeApp();
@@ -84,9 +85,7 @@ exports.publishVerifiedProfile = onCall(callableOptions, async (request) => {
   const phoneHmac = keyedDigest(phone, secret);
   const reference = db.collection("verifiedNumberProfiles").doc(`v1_${phoneHmac}`);
   const existing = await reference.get();
-  if (existing.exists && existing.data().uid !== request.auth.uid) {
-    throw new HttpsError("already-exists", "Bu numara başka bir hesaba bağlı.");
-  }
+  const sameOwner = existing.exists && existing.data().uid === request.auth.uid;
 
   await reference.set({
     uid: request.auth.uid,
@@ -94,8 +93,8 @@ exports.publishVerifiedProfile = onCall(callableOptions, async (request) => {
     firstName,
     lastName,
     displayName: `${firstName} ${lastName}`,
-    isVisible: true,
-    verifiedAt: existing.exists ? existing.data().verifiedAt : FieldValue.serverTimestamp(),
+    isVisible: sameOwner ? existing.data().isVisible !== false : true,
+    verifiedAt: sameOwner ? existing.data().verifiedAt : FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     schemaVersion: 1,
   }, {merge: true});
@@ -115,7 +114,18 @@ exports.lookupVerifiedProfile = onCall(callableOptions, async (request) => {
   const phoneHmac = keyedDigest(number, secret);
   const snapshot = await db.collection("verifiedNumberProfiles").doc(`v1_${phoneHmac}`).get();
   const profile = snapshot.data();
-  if (!snapshot.exists) return {found: false, hidden: false};
+  if (!snapshot.exists) {
+    try {
+      const user = await getAuth().getUserByPhoneNumber(`+${number}`);
+      const owner = publicProfileFromAuthUser(user, number);
+      return owner ? {found: true, owner} : {found: false, hidden: false};
+    } catch (error) {
+      if (error && error.code === "auth/user-not-found") {
+        return {found: false, hidden: false};
+      }
+      throw new HttpsError("internal", "Doğrulanmış profil okunamadı.");
+    }
+  }
   if (!profile.isVisible) return {found: false, hidden: true};
 
   return {

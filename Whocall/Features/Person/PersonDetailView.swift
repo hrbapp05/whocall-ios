@@ -34,7 +34,14 @@ struct PersonDetailView: View {
             )
             .padding(.top, 60)
         }
-        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .background(alignment: .top) {
+            ZStack(alignment: .top) {
+                Color(.systemBackground)
+                Color(.systemGroupedBackground)
+                    .frame(height: 60)
+            }
+            .ignoresSafeArea()
+        }
         .navigationTitle("Kişi Kartı")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

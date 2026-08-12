@@ -23,6 +23,18 @@ final class PurchaseConfigurationTests: XCTestCase {
         XCTAssertEqual(RevenueCatProductID.credits10.creditAmount, 10)
     }
 
+    func testOnlySubscriptionProductsUnlockPremium() {
+        XCTAssertTrue(RevenueCatProductID.unlocksPremium(
+            productIdentifier: RevenueCatProductID.premiumWeekly.rawValue
+        ))
+        XCTAssertTrue(RevenueCatProductID.unlocksPremium(
+            productIdentifier: RevenueCatProductID.premiumMonthly.rawValue
+        ))
+        XCTAssertFalse(RevenueCatProductID.unlocksPremium(
+            productIdentifier: RevenueCatProductID.credits5.rawValue
+        ))
+    }
+
     func testRevenueCatKeyValidationRejectsPlaceholders() {
         XCTAssertFalse(RevenueCatConfiguration.isUsablePublicSDKKey(""))
         XCTAssertFalse(RevenueCatConfiguration.isUsablePublicSDKKey("$(REVENUECAT_PUBLIC_SDK_KEY)"))
