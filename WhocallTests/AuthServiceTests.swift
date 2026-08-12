@@ -34,5 +34,21 @@ final class AuthServiceTests: XCTestCase {
 
         XCTAssertEqual(FirebasePhoneAuthService.localized(firebaseError), .appVerificationFailed)
     }
+
+    func testFirebaseBillingErrorUsesActionableMessage() {
+        let firebaseError = NSError(
+            domain: "FIRAuthErrorDomain",
+            code: AuthErrorCode.internalError.rawValue,
+            userInfo: [AuthErrorUserInfoNameKey: "ERROR_BILLING_NOT_ENABLED"]
+        )
+
+        XCTAssertEqual(FirebasePhoneAuthService.localized(firebaseError), .billingRequired)
+    }
+
+    func testUnknownFirebaseErrorExposesNonPIITechnicalCode() {
+        let firebaseError = NSError(domain: "FIRAuthErrorDomain", code: 17_777)
+
+        XCTAssertEqual(FirebasePhoneAuthService.localized(firebaseError), .serviceFailure(code: 17_777))
+    }
 #endif
 }

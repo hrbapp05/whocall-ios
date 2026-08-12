@@ -20,7 +20,9 @@ enum AuthError: LocalizedError, Equatable {
     case appVerificationFailed
     case providerDisabled
     case smsQuotaExceeded
+    case billingRequired
     case recaptchaCancelled
+    case serviceFailure(code: Int)
     case verificationFailed
 
     var errorDescription: String? {
@@ -43,8 +45,12 @@ enum AuthError: LocalizedError, Equatable {
             "Telefonla giriş şu anda kullanılamıyor."
         case .smsQuotaExceeded:
             "SMS gönderim sınırına ulaşıldı. Lütfen daha sonra tekrar deneyin."
+        case .billingRequired:
+            "Gerçek SMS gönderebilmek için Firebase faturalandırmasının etkinleştirilmesi gerekiyor."
         case .recaptchaCancelled:
             "Uygulama doğrulama ekranı tamamlanmadı. Lütfen tekrar deneyin."
+        case let .serviceFailure(code):
+            "Doğrulama servisi isteği tamamlayamadı. Teknik kod: \(code)."
         case .verificationFailed:
             "Doğrulama tamamlanamadı. Lütfen bilgilerinizi kontrol edip tekrar deneyin."
         }
@@ -116,9 +122,19 @@ struct FirebasePhoneAuthService: AuthServicing, @unchecked Sendable {
 
     static func localized(_ error: Error) -> AuthError {
         let nsError = error as NSError
+        let firebaseErrorName = nsError.userInfo[AuthErrorUserInfoNameKey] as? String ?? ""
+        let failureReason = nsError.userInfo[NSLocalizedFailureReasonErrorKey] as? String ?? ""
+        let serverSignal = "\(firebaseErrorName) \(failureReason) \(nsError.localizedDescription)"
+            .uppercased()
+
+        if serverSignal.contains("BILLING") || serverSignal.contains("PAYMENT_REQUIRED") {
+            return .billingRequired
+        }
+
         if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
             let mappedUnderlying = localized(underlying)
-            if mappedUnderlying != .verificationFailed {
+            if mappedUnderlying != .verificationFailed,
+               mappedUnderlying != .serviceFailure(code: (underlying as NSError).code) {
                 return mappedUnderlying
             }
         }
@@ -173,7 +189,7 @@ struct FirebasePhoneAuthService: AuthServicing, @unchecked Sendable {
         case AuthErrorCode.webContextCancelled.rawValue:
             .recaptchaCancelled
         default:
-            .verificationFailed
+            .serviceFailure(code: nsError.code)
         }
     }
 }
