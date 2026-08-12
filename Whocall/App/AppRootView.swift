@@ -57,6 +57,7 @@ struct AppRootView: View {
     @State private var purchaseStore = PurchaseStore()
     @State private var contactService = ContactService()
     @State private var recentLookupStore = RecentLookupStore()
+    @State private var communityStore = CommunityStore()
     @State private var postAuthenticationFlow: PostAuthenticationPresentation?
 
     private var skipsOnboardingForUITest: Bool {
@@ -87,6 +88,7 @@ struct AppRootView: View {
         .environment(purchaseStore)
         .environment(contactService)
         .environment(recentLookupStore)
+        .environment(communityStore)
         .fullScreenCover(item: $postAuthenticationFlow) { presentation in
             PostAuthenticationFlowView(
                 requiresProfileCompletion: presentation.requiresProfileCompletion
@@ -142,8 +144,27 @@ private struct UITestShowcaseView: View {
             case "premium": PremiumView()
             case "credits": CreditsView()
             case "scanning": LookupProgressView(number: "5065055555", onResult: { _ in })
-            case "person": PersonDetailView(name: "Ahmet S.", number: "905055055050", onComments: {})
-            default: HomeView(onSearch: { _ in }, onRecord: { _ in }, onPremium: {})
+            case "person": PersonDetailView(
+                name: "Ahmet S.",
+                number: "905055055050",
+                onComments: {},
+                onAddComment: {},
+                onCredits: {}
+            )
+            case "comments": CommentsView(personName: "Ahmet S.", phoneNumber: "905055055050")
+            case "result": ResultView(
+                owner: PhoneOwner(
+                    phoneNumber: "905055055050",
+                    displayName: "Ahmet S.",
+                    firstName: "Ahmet",
+                    lastName: "S."
+                ),
+                onDetails: {},
+                onNewLookup: {},
+                onCredits: {}
+            )
+            case "profile": ProfileView(onSignOut: {})
+            default: HomeView(onSearch: { _ in }, onRecord: { _ in }, onPremium: {}, onCredits: {})
             }
         }
     }

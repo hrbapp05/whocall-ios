@@ -16,16 +16,17 @@ final class RecentLookupStore {
     }
 
     func record(owner: PhoneOwner, contacts: ContactService) async {
+        let safeOwner = owner.privacySafe
         let canonicalNumber = owner.phoneNumber
         upsert(
             phoneNumber: canonicalNumber,
-            displayName: owner.displayName,
+            displayName: safeOwner.displayName,
             date: Date()
         )
 
         if let contactName = await contacts.displayName(for: canonicalNumber),
            !contactName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            updateDisplayName(contactName, for: canonicalNumber)
+            updateDisplayName(PersonNameFormatter.maskFullName(contactName), for: canonicalNumber)
         }
     }
 
@@ -82,11 +83,12 @@ final class RecentLookupStore {
 
     private func rebuildRecords() {
         records = storedEntries.map { entry in
-            SearchRecord(
+            let safeDisplayName = PersonNameFormatter.maskFullName(entry.displayName)
+            return SearchRecord(
                 id: entry.id,
-                initials: initials(for: entry.displayName),
+                initials: initials(for: safeDisplayName),
                 phoneNumber: entry.phoneNumber,
-                displayName: entry.displayName,
+                displayName: safeDisplayName,
                 time: formattedTime(entry.date)
             )
         }

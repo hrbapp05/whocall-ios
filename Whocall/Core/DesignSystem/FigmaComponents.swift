@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CreditBadge: View {
     var amount: Int?
-    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 5
+    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 0
 
     init(amount: Int? = nil) {
         self.amount = amount
@@ -31,7 +31,7 @@ struct CreditBadge: View {
 
 struct ToolbarCreditBadge: View {
     var amount: Int?
-    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 5
+    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 0
 
     init(amount: Int? = nil) {
         self.amount = amount

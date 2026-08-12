@@ -20,7 +20,8 @@ final class VerifiedNumberDirectoryTests: XCTestCase {
 
         let result = try await service.lookup(number: "5061585598")
 
-        XCTAssertEqual(result, verified)
+        XCTAssertEqual(result, verified.privacySafe)
+        XCTAssertEqual(result.displayName, "Doğrulanmış K.")
     }
 }
 

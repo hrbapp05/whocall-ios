@@ -22,7 +22,18 @@ struct LookupProgressView: View {
     @Environment(\.dismiss) private var dismiss
     let number: String
     let onResult: (PhoneOwner) -> Void
+    let onCredits: () -> Void
     @State private var model = LookupModel()
+
+    init(
+        number: String,
+        onResult: @escaping (PhoneOwner) -> Void,
+        onCredits: @escaping () -> Void = {}
+    ) {
+        self.number = number
+        self.onResult = onResult
+        self.onCredits = onCredits
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -84,8 +95,12 @@ struct LookupProgressView: View {
 
             Spacer()
 
-            ToolbarCreditBadge()
-                .background(.white, in: .capsule)
+            Button(action: onCredits) {
+                ToolbarCreditBadge()
+                    .background(.white, in: .capsule)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Kredi yükle")
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
@@ -153,10 +168,13 @@ struct LookupProgressView: View {
     private func beginLookup() async {
         withAnimation { model.phase = 1 }
         try? await Task.sleep(for: .milliseconds(650))
+        guard !Task.isCancelled else { return }
         withAnimation { model.phase = 2 }
         if let owner = await model.lookup(number: number) {
+            guard !Task.isCancelled else { return }
             withAnimation { model.phase = 3 }
             try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
             onResult(owner)
         }
     }

@@ -17,11 +17,7 @@ struct HistoryView: View {
                     Section("WhoCall Sorguları") {
                         ForEach(recentLookupStore.records) { record in
                             NavigationLink {
-                                PersonDetailView(
-                                    name: record.displayName,
-                                    number: record.phoneNumber,
-                                    onComments: {}
-                                )
+                                HistoryPersonDetail(record: record)
                             } label: {
                                 SearchRecordRow(record: record)
                             }
@@ -41,4 +37,39 @@ struct HistoryView: View {
             }
         }
     }
+}
+
+private struct HistoryPersonDetail: View {
+    let record: SearchRecord
+    @State private var destination: HistoryPersonDestination?
+
+    var body: some View {
+        PersonDetailView(
+            name: record.displayName,
+            number: record.phoneNumber,
+            onComments: { destination = .comments },
+            onAddComment: { destination = .addComment },
+            onCredits: { destination = .credits }
+        )
+        .navigationDestination(item: $destination) { destination in
+            switch destination {
+            case .comments:
+                CommentsView(personName: record.displayName, phoneNumber: record.phoneNumber)
+            case .addComment:
+                CommentsView(
+                    personName: record.displayName,
+                    phoneNumber: record.phoneNumber,
+                    startsComposing: true
+                )
+            case .credits:
+                CreditsView()
+            }
+        }
+    }
+}
+
+private enum HistoryPersonDestination: Hashable {
+    case comments
+    case addComment
+    case credits
 }

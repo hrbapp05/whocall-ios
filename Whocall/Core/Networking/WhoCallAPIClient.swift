@@ -69,8 +69,8 @@ struct PhoneLookupService {
 
     func lookup(number: String) async throws -> PhoneOwner {
         if let verifiedOwner = try? await directory.lookup(number: number) {
-            return verifiedOwner
+            return verifiedOwner.privacySafe
         }
-        return try await apiClient.lookup(number: number)
+        return try await apiClient.lookup(number: number).privacySafe
     }
 }

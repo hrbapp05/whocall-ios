@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeFlowView: View {
     @Environment(ContactService.self) private var contactService
+    @Environment(PurchaseStore.self) private var purchaseStore
     @Environment(RecentLookupStore.self) private var recentLookupStore
     @State private var path: [HomeRoute] = []
 
@@ -10,7 +11,8 @@ struct HomeFlowView: View {
             HomeView(
                 onSearch: { path.append(.lookup($0)) },
                 onRecord: { path.append(.person($0.displayName, $0.phoneNumber)) },
-                onPremium: { path.append(.premium) }
+                onPremium: { path.append(.premium) },
+                onCredits: { path.append(.credits) }
             )
             .navigationDestination(for: HomeRoute.self) { route in
                 destination(route)
@@ -22,20 +24,42 @@ struct HomeFlowView: View {
     private func destination(_ route: HomeRoute) -> some View {
         switch route {
         case let .lookup(number):
-            LookupProgressView(number: number) { owner in
-                Task {
-                    await recentLookupStore.record(owner: owner, contacts: contactService)
-                }
-                path.append(.result(owner))
-            }
+            LookupProgressView(
+                number: number,
+                onResult: { owner in
+                    guard purchaseStore.authorizeLookupResult() else {
+                        if !path.isEmpty { path.removeLast() }
+                        path.append(.premium)
+                        return
+                    }
+                    Task {
+                        await recentLookupStore.record(owner: owner, contacts: contactService)
+                    }
+                    path.append(.result(owner))
+                },
+                onCredits: { path.append(.credits) }
+            )
         case let .result(owner):
-            ResultView(owner: owner, onDetails: { path.append(.person(owner.displayName, owner.phoneNumber)) })
+            ResultView(
+                owner: owner,
+                onDetails: { path.append(.person(owner.displayName, owner.phoneNumber)) },
+                onNewLookup: { path.removeAll() },
+                onCredits: { path.append(.credits) }
+            )
         case let .person(name, number):
-            PersonDetailView(name: name, number: number) { path.append(.comments) }
-        case .comments:
-            CommentsView()
+            PersonDetailView(
+                name: name,
+                number: number,
+                onComments: { path.append(.comments(name, number, false)) },
+                onAddComment: { path.append(.comments(name, number, true)) },
+                onCredits: { path.append(.credits) }
+            )
+        case let .comments(name, number, startsComposing):
+            CommentsView(personName: name, phoneNumber: number, startsComposing: startsComposing)
         case .premium:
             PremiumView()
+        case .credits:
+            CreditsView()
         }
     }
 }
@@ -44,6 +68,7 @@ enum HomeRoute: Hashable {
     case lookup(String)
     case result(PhoneOwner)
     case person(String, String)
-    case comments
+    case comments(String, String, Bool)
     case premium
+    case credits
 }

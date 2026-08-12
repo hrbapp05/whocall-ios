@@ -123,7 +123,11 @@ struct FirebasePhoneAuthService: AuthServicing, @unchecked Sendable {
             verificationCode: code
         )
         do {
-            _ = try await Auth.auth().signIn(with: credential)
+            if let currentUser = Auth.auth().currentUser, currentUser.phoneNumber == nil {
+                _ = try await currentUser.link(with: credential)
+            } else {
+                _ = try await Auth.auth().signIn(with: credential)
+            }
         } catch {
             throw Self.localized(error)
         }

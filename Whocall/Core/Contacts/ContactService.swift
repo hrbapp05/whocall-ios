@@ -1,6 +1,18 @@
 import Contacts
 import Observation
 
+enum ContactServiceError: LocalizedError {
+    case accessDenied
+    case invalidNumber
+
+    var errorDescription: String? {
+        switch self {
+        case .accessDenied: "Kişiyi kaydetmek için rehber izni gerekiyor."
+        case .invalidNumber: "Telefon numarası geçerli değil."
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class ContactService {
@@ -50,6 +62,24 @@ final class ContactService {
             }
             return CNContactFormatter.string(from: contact, style: .fullName)
         }.value
+    }
+
+    func saveContact(name: String, phoneNumber: String) async throws {
+        guard await requestAccessIfNeeded() else { throw ContactServiceError.accessDenied }
+        let digits = phoneNumber.filter(\.isNumber)
+        guard digits.count >= 10 else { throw ContactServiceError.invalidNumber }
+
+        let contact = CNMutableContact()
+        contact.givenName = name
+        contact.phoneNumbers = [
+            CNLabeledValue(
+                label: CNLabelPhoneNumberMobile,
+                value: CNPhoneNumber(stringValue: phoneNumber)
+            )
+        ]
+        let request = CNSaveRequest()
+        request.add(contact, toContainerWithIdentifier: nil)
+        try store.execute(request)
     }
 
     private static func canReadContacts(with status: CNAuthorizationStatus) -> Bool {

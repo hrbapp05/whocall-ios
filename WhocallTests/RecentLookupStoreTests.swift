@@ -20,11 +20,11 @@ final class RecentLookupStoreTests: XCTestCase {
         await store.record(owner: owner, contacts: contacts)
 
         XCTAssertEqual(store.records.count, 1)
-        XCTAssertEqual(store.records.first?.displayName, "Ada Yılmaz")
+        XCTAssertEqual(store.records.first?.displayName, "Ada Y.")
         XCTAssertEqual(store.records.first?.phoneNumber, "+905061585598")
 
         let reloaded = RecentLookupStore(defaults: defaults)
-        XCTAssertEqual(reloaded.records.first?.displayName, "Ada Yılmaz")
+        XCTAssertEqual(reloaded.records.first?.displayName, "Ada Y.")
     }
 
     func testDeduplicatesSamePhoneNumber() async throws {
@@ -55,6 +55,6 @@ final class RecentLookupStoreTests: XCTestCase {
         )
 
         XCTAssertEqual(store.records.count, 1)
-        XCTAssertEqual(store.records.first?.displayName, "Güncel Ad")
+        XCTAssertEqual(store.records.first?.displayName, "Güncel A.")
     }
 }

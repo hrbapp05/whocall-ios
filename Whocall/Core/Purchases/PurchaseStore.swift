@@ -46,6 +46,8 @@ enum RevenueCatConfiguration {
 final class PurchaseStore {
     static let premiumEntitlementID = "premium"
     static let creditBalanceKey = "creditBalance"
+    static let creditBalanceMigrationKey = "creditBalance.v2.initialized"
+    static let processedCreditTransactionsKey = "whocall.processedCreditTransactions.v1"
 
     private(set) var isConfigured = false
     private(set) var isLoadingProducts = false
@@ -61,8 +63,15 @@ final class PurchaseStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if defaults.object(forKey: Self.creditBalanceKey) == nil {
-            defaults.set(5, forKey: Self.creditBalanceKey)
+        if !defaults.bool(forKey: Self.creditBalanceMigrationKey) {
+            // Earlier test builds displayed five placeholder credits. They were never
+            // purchased. Preserve every other balance because it may include a real
+            // consumable purchase from a previous TestFlight build.
+            let previousBalance = defaults.object(forKey: Self.creditBalanceKey) == nil
+                ? 0
+                : defaults.integer(forKey: Self.creditBalanceKey)
+            defaults.set(previousBalance == 5 ? 0 : previousBalance, forKey: Self.creditBalanceKey)
+            defaults.set(true, forKey: Self.creditBalanceMigrationKey)
         }
         creditBalance = defaults.integer(forKey: Self.creditBalanceKey)
     }
@@ -90,7 +99,25 @@ final class PurchaseStore {
             }
         }
 
+        if let customerInfo = try? await Purchases.shared.customerInfo() {
+            apply(customerInfo)
+        }
         await refreshProducts()
+    }
+
+    var hasLookupAccess: Bool {
+        isPremium || creditBalance > 0
+    }
+
+    /// Premium includes unlimited lookups. Otherwise one purchased credit is
+    /// consumed immediately before the result is revealed.
+    @discardableResult
+    func authorizeLookupResult() -> Bool {
+        if isPremium { return true }
+        guard creditBalance > 0 else { return false }
+        creditBalance -= 1
+        defaults.set(creditBalance, forKey: Self.creditBalanceKey)
+        return true
     }
 
     func refreshProducts() async {
@@ -125,13 +152,20 @@ final class PurchaseStore {
         defer { isPurchasing = false }
 
         do {
-            let (_, customerInfo, userCancelled) = try await Purchases.shared.purchase(product: product)
+            let (transaction, customerInfo, userCancelled) = try await Purchases.shared.purchase(product: product)
             guard !userCancelled else { return false }
 
             apply(customerInfo)
             if let amount = productID.creditAmount {
-                addCredits(amount)
-                alertMessage = "\(amount) sorgulama kredisi hesabınıza eklendi."
+                guard let transactionID = transaction?.transactionIdentifier else {
+                    alertMessage = "Kredi işlemi doğrulanamadı. Satın alım geçmişinizi yenileyip tekrar deneyin."
+                    return false
+                }
+                if grantCreditsOnce(amount, transactionID: transactionID) {
+                    alertMessage = "\(amount) sorgulama kredisi hesabınıza eklendi."
+                } else {
+                    alertMessage = "Bu kredi işlemi daha önce hesabınıza eklenmiş."
+                }
             } else {
                 alertMessage = "WhoCall Premium etkinleştirildi."
             }
@@ -178,8 +212,15 @@ final class PurchaseStore {
             !customerInfo.activeSubscriptions.isEmpty
     }
 
-    private func addCredits(_ amount: Int) {
+    @discardableResult
+    private func grantCreditsOnce(_ amount: Int, transactionID: String) -> Bool {
+        var processedTransactions = Set(
+            defaults.stringArray(forKey: Self.processedCreditTransactionsKey) ?? []
+        )
+        guard processedTransactions.insert(transactionID).inserted else { return false }
         creditBalance += amount
         defaults.set(creditBalance, forKey: Self.creditBalanceKey)
+        defaults.set(Array(processedTransactions), forKey: Self.processedCreditTransactionsKey)
+        return true
     }
 }
