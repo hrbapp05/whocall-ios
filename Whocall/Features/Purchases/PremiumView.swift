@@ -132,9 +132,9 @@ struct PremiumView: View {
             .disabled(purchaseStore.isPurchasing)
 
             HStack(spacing: 10) {
-                Link("Abonelik Koşulları", destination: URL(string: "https://whocallapp.online")!)
+                Link("Abonelik Koşulları", destination: LegalPolicy.termsOfUseURL)
                 Text("•")
-                Link("Gizlilik Politikası", destination: URL(string: "https://whocallapp.online")!)
+                Link("Gizlilik Politikası", destination: LegalPolicy.privacyPolicyURL)
                 Text("•")
                 Button("Geri Yükle") {
                     Task { await purchaseStore.restorePurchases() }

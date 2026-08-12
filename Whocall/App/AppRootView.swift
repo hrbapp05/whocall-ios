@@ -139,6 +139,7 @@ struct AppRootView: View {
     @State private var recentLookupStore = RecentLookupStore()
     @State private var communityStore = CommunityStore()
     @State private var postAuthenticationFlow: PostAuthenticationPresentation?
+    @State private var legalAcceptanceRefresh = 0
 
     private var skipsOnboardingForUITest: Bool {
 #if DEBUG
@@ -171,6 +172,15 @@ struct AppRootView: View {
                             isPremium: purchaseStore.isPremium
                         )
                     }
+                }
+            } else if requiresCurrentLegalAcceptance {
+                LegalConsentGateView {
+                    LegalAcceptancePreference.markPending()
+                    try await LegalAccountServiceFactory.live().recordCurrentAcceptance()
+                    legalAcceptanceRefresh += 1
+                } onDeclined: {
+                    LegalAcceptancePreference.clearPending()
+                    session.signOut()
                 }
             } else {
                 AppShellView { session.signOut() }
@@ -216,6 +226,12 @@ struct AppRootView: View {
         nil
 #endif
     }
+
+    private var requiresCurrentLegalAcceptance: Bool {
+        _ = legalAcceptanceRefresh
+        guard let userID = session.userID else { return false }
+        return !LegalAcceptancePreference.hasAcceptedCurrent(userID: userID)
+    }
 }
 
 struct PostAuthenticationPresentation: Identifiable, Equatable {
@@ -252,7 +268,9 @@ private struct UITestShowcaseView: View {
             )
             case "premium": PremiumView()
             case "credits": CreditsView()
-            case "scanning": LookupProgressView(number: "5065055555", onResult: { _ in })
+            case "scanning": LookupProgressView(number: "5065055555", onOutcome: { _ in })
+            case "hidden": LookupUnavailableView(reason: .hidden, number: "5065055555", onNewLookup: {})
+            case "notfound": LookupUnavailableView(reason: .notFound, number: "5065055555", onNewLookup: {})
             case "person": PersonDetailView(
                 name: "Ahmet S.",
                 number: "905055055050",

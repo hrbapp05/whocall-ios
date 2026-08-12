@@ -84,6 +84,11 @@ enum ProfileVisibilityPreference {
         guard let userID else { return }
         UserDefaults.standard.set(isVisible, forKey: "\(prefix).\(userID)")
     }
+
+    static func clear(userID: String?) {
+        guard let userID else { return }
+        UserDefaults.standard.removeObject(forKey: "\(prefix).\(userID)")
+    }
 }
 
 enum PendingVerifiedProfileStore {

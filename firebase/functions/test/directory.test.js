@@ -6,6 +6,7 @@ const {
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
+  normalizeLegalAcceptance,
   normalizeName,
   normalizePhone,
   publicProfileFromAuthUser,
@@ -67,4 +68,28 @@ test("blocks Turkish insults despite spacing and casing", () => {
   assert.equal(containsBlockedCommunityLanguage("ŞEREFSİZ arayan"), true);
   assert.equal(containsBlockedCommunityLanguage("s i k t i r"), true);
   assert.equal(containsBlockedCommunityLanguage("Güvenilir tesisatçı"), false);
+});
+
+test("accepts only the current, separately acknowledged legal documents", () => {
+  assert.deepEqual(normalizeLegalAcceptance({
+    termsVersion: "2026-08-12.1",
+    privacyNoticeVersion: "2026-08-12.1",
+    termsAccepted: true,
+    privacyNoticeAcknowledged: true,
+    appVersion: "1.0 (25)",
+    locale: "tr-TR",
+  }), {
+    termsVersion: "2026-08-12.1",
+    privacyNoticeVersion: "2026-08-12.1",
+    appVersion: "1.0 (25)",
+    locale: "tr-TR",
+  });
+  assert.equal(normalizeLegalAcceptance({
+    termsVersion: "old",
+    privacyNoticeVersion: "2026-08-12.1",
+    termsAccepted: true,
+    privacyNoticeAcknowledged: true,
+    appVersion: "1.0",
+    locale: "tr-TR",
+  }), null);
 });

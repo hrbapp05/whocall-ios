@@ -3,6 +3,8 @@
 const {createHmac} = require("node:crypto");
 
 const NAME_PATTERN = /^[\p{L}\p{M}'’.\-]+(?: [\p{L}\p{M}'’.\-]+)*$/u;
+const CURRENT_TERMS_VERSION = "2026-08-12.1";
+const CURRENT_PRIVACY_NOTICE_VERSION = "2026-08-12.1";
 
 const BLOCKED_COMMUNITY_TERMS = [
   "amk", "aq", "orospu", "sik", "siktir", "piç", "pic", "yavşak", "yavsak",
@@ -76,7 +78,26 @@ function containsBlockedCommunityLanguage(value) {
   });
 }
 
+function normalizeLegalAcceptance(value) {
+  if (!value || typeof value !== "object") return null;
+  if (value.termsVersion !== CURRENT_TERMS_VERSION ||
+      value.privacyNoticeVersion !== CURRENT_PRIVACY_NOTICE_VERSION ||
+      value.termsAccepted !== true ||
+      value.privacyNoticeAcknowledged !== true) return null;
+  if (typeof value.appVersion !== "string" || value.appVersion.length < 1 ||
+      value.appVersion.length > 40 || typeof value.locale !== "string" ||
+      value.locale.length < 2 || value.locale.length > 16) return null;
+  return {
+    termsVersion: CURRENT_TERMS_VERSION,
+    privacyNoticeVersion: CURRENT_PRIVACY_NOTICE_VERSION,
+    appVersion: value.appVersion,
+    locale: value.locale,
+  };
+}
+
 module.exports = {
+  CURRENT_PRIVACY_NOTICE_VERSION,
+  CURRENT_TERMS_VERSION,
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
@@ -84,4 +105,5 @@ module.exports = {
   normalizeForModeration,
   normalizeName,
   normalizePhone,
+  normalizeLegalAcceptance,
 };

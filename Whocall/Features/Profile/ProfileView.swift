@@ -3,12 +3,16 @@ import UIKit
 
 struct ProfileView: View {
     let onSignOut: () -> Void
+    @Environment(PurchaseStore.self) private var purchaseStore
+    @Environment(RecentLookupStore.self) private var recentLookupStore
     @State private var isVisible = true
     @State private var hasLoadedVisibility = false
     @State private var isUpdatingVisibility = false
     @State private var isPhoneVerificationPresented = false
     @State private var isCallerIDInfoPresented = false
     @State private var verificationMessage: String?
+    @State private var isDeleteConfirmationPresented = false
+    @State private var isDeletingAccount = false
 
     var body: some View {
         NavigationStack {
@@ -77,9 +81,37 @@ struct ProfileView: View {
                 }
 
                 Section("Destek") {
-                    Label("Bize Ulaşın", systemImage: "envelope")
-                    Label("Gizlilik Politikası", systemImage: "lock.shield")
-                    Label("Kullanım Koşulları", systemImage: "doc.text")
+                    Link(destination: URL(string: "mailto:support@levelappstuido.com")!) {
+                        Label("Bize Ulaşın", systemImage: "envelope")
+                    }
+                    NavigationLink {
+                        LegalDocumentView(document: .privacyPolicy)
+                    } label: {
+                        Label("Gizlilik Politikası", systemImage: "lock.shield")
+                    }
+                    NavigationLink {
+                        LegalDocumentView(document: .kvkkNotice)
+                    } label: {
+                        Label("KVKK Aydınlatma Metni", systemImage: "person.text.rectangle")
+                    }
+                    NavigationLink {
+                        LegalDocumentView(document: .termsOfUse)
+                    } label: {
+                        Label("Kullanım Koşulları", systemImage: "doc.text")
+                    }
+                }
+
+                Section("Hesap Yönetimi") {
+                    Button(role: .destructive) {
+                        isDeleteConfirmationPresented = true
+                    } label: {
+                        HStack {
+                            Label("Hesabımı Sil", systemImage: "trash")
+                            Spacer()
+                            if isDeletingAccount { ProgressView() }
+                        }
+                    }
+                    .disabled(isDeletingAccount)
                 }
 
                 Button("Çıkış Yap", role: .destructive, action: onSignOut)
@@ -98,6 +130,18 @@ struct ProfileView: View {
                 Button("Tamam", role: .cancel) { verificationMessage = nil }
             } message: {
                 Text(verificationMessage ?? "")
+            }
+            .confirmationDialog(
+                "WhoCall hesabınız kalıcı olarak silinsin mi?",
+                isPresented: $isDeleteConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Hesabımı Kalıcı Olarak Sil", role: .destructive) {
+                    Task { await deleteAccount() }
+                }
+                Button("Vazgeç", role: .cancel) {}
+            } message: {
+                Text("Doğrulanmış profiliniz, yasal tercih kaydınız, yorumlarınız ve raporlarınız silinir. Kimlikle ilişkilendirilmeyen topluluk istatistikleri ile Apple satın alma kayıtları ilgili saklama kurallarına tabi olabilir.")
             }
             .task {
                 let profile = ProfileServiceFactory.live()
@@ -162,6 +206,30 @@ struct ProfileView: View {
                 verificationMessage = "Görünürlük ayarı sunucuyla eşitlenemedi. Lütfen tekrar deneyin."
             }
             isUpdatingVisibility = false
+        }
+    }
+
+    @MainActor
+    private func deleteAccount() async {
+        guard !isDeletingAccount,
+              let userID = ProfileServiceFactory.live().currentUserID else {
+            verificationMessage = "Silinecek doğrulanmış hesap bulunamadı."
+            return
+        }
+
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+
+        do {
+            try await LegalAccountServiceFactory.live().deleteCurrentAccount()
+            recentLookupStore.clear()
+            await purchaseStore.clearLocalAccountData(accountID: userID)
+            ProfileVisibilityPreference.clear(userID: userID)
+            PendingVerifiedProfileStore.clear()
+            LegalAcceptancePreference.clear(userID: userID)
+            onSignOut()
+        } catch {
+            verificationMessage = error.localizedDescription
         }
     }
 

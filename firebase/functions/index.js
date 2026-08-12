@@ -9,6 +9,7 @@ const {
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
+  normalizeLegalAcceptance,
   normalizeName,
   normalizePhone,
   publicProfileFromAuthUser,
@@ -26,6 +27,7 @@ const callableOptions = {
   minInstances: 0,
   secrets: [hmacKey],
 };
+const accountDeletionOptions = {...callableOptions, timeoutSeconds: 60};
 
 async function authenticatedPhone(request) {
   if (!request.auth) {
@@ -97,6 +99,7 @@ exports.publishVerifiedProfile = onCall(callableOptions, async (request) => {
     verifiedAt: sameOwner ? existing.data().verifiedAt : FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     schemaVersion: 1,
+    deletedAt: FieldValue.delete(),
   }, {merge: true});
 
   return {published: true};
@@ -193,6 +196,96 @@ exports.setVerifiedProfileVisibility = onCall(callableOptions, async (request) =
     updatedAt: FieldValue.serverTimestamp(),
   }, {merge: true});
   return {published: isVisible};
+});
+
+exports.recordLegalAcceptance = onCall(callableOptions, async (request) => {
+  await authenticatedPhone(request);
+  const acceptance = normalizeLegalAcceptance(request.data);
+  if (!acceptance) {
+    throw new HttpsError("invalid-argument", "Geçerli yasal tercih beyanları zorunludur.");
+  }
+
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "legal-acceptance", 5, secret);
+  await db.collection("userLegalAcceptances").doc(request.auth.uid).set({
+    uid: request.auth.uid,
+    ...acceptance,
+    termsAccepted: true,
+    privacyNoticeAcknowledged: true,
+    acceptedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
+  return {recorded: true};
+});
+
+async function deleteQueryInBatches(query, mutateDocument) {
+  const batchSize = 180;
+  while (true) {
+    const snapshot = await query.limit(batchSize).get();
+    if (snapshot.empty) return;
+    const batch = db.batch();
+    for (const document of snapshot.docs) {
+      if (mutateDocument) mutateDocument(batch, document);
+      else batch.delete(document.ref);
+    }
+    await batch.commit();
+    if (snapshot.size < batchSize) return;
+  }
+}
+
+exports.deleteWhoCallAccount = onCall(accountDeletionOptions, async (request) => {
+  await authenticatedPhone(request);
+  const uid = request.auth.uid;
+  const secret = hmacKey.value();
+  await enforceRateLimit(uid, "account-delete", 2, secret);
+
+  const profileQuery = db.collection("verifiedNumberProfiles").where("uid", "==", uid);
+  await deleteQueryInBatches(profileQuery, (batch, document) => {
+    batch.set(document.ref, {
+      uid: FieldValue.delete(),
+      firstName: FieldValue.delete(),
+      lastName: FieldValue.delete(),
+      displayName: FieldValue.delete(),
+      isVisible: false,
+      deletedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  });
+
+  await deleteQueryInBatches(
+      db.collectionGroup("comments").where("uid", "==", uid),
+  );
+
+  const reportID = keyedDigest(uid, secret);
+  await deleteQueryInBatches(
+      db.collectionGroup("reports").where("uidHash", "==", reportID),
+      (batch, document) => {
+        batch.delete(document.ref);
+        const community = document.ref.parent.parent;
+        if (community) {
+          batch.set(community, {
+            reportCount: FieldValue.increment(-1),
+            updatedAt: FieldValue.serverTimestamp(),
+          }, {merge: true});
+        }
+      },
+  );
+
+  const batch = db.batch();
+  batch.delete(db.collection("userLegalAcceptances").doc(uid));
+  const rateLimitOperations = [
+    "publish", "lookup", "unpublish", "visibility", "community-read",
+    "community-comment", "community-tag", "community-report",
+    "legal-acceptance", "account-delete",
+  ];
+  for (const operation of rateLimitOperations) {
+    const id = keyedDigest(`${uid}:${operation}`, secret);
+    batch.delete(db.collection("directoryRateLimits").doc(id));
+  }
+  await batch.commit();
+
+  await getAuth().deleteUser(uid);
+  return {deleted: true};
 });
 
 function communityReference(number, secret) {

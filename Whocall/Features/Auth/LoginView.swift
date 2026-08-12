@@ -2,6 +2,14 @@ import SwiftUI
 
 struct LoginView: View {
     private let referenceSize = CGSize(width: 402, height: 874)
+    let onLogin: () -> Void
+
+    @State private var presentedSheet: LoginSheetDestination?
+    @State private var continuesAfterLegalSheet = false
+
+    init(onLogin: @escaping () -> Void = {}) {
+        self.onLogin = onLogin
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -69,7 +77,9 @@ struct LoginView: View {
                     .position(x: 201, y: 728)
                     .figmaEntrance(delay: 0.31, distance: 11)
 
-                NavigationLink(value: AuthRoute.phone) {
+                Button {
+                    presentedSheet = .legalConsent
+                } label: {
                     Text("Giriş Yap")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
@@ -89,6 +99,17 @@ struct LoginView: View {
         }
         .ignoresSafeArea()
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $presentedSheet, onDismiss: continueAfterLegalSheetIfNeeded) { destination in
+            switch destination {
+            case .legalConsent:
+                LegalConsentView {
+                    LegalAcceptancePreference.markPending()
+                    continuesAfterLegalSheet = true
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+        }
     }
 
     private var welcomeTitle: some View {
@@ -96,6 +117,12 @@ struct LoginView: View {
             .font(.system(size: 32))
             .foregroundStyle(.black)
             .multilineTextAlignment(.center)
+    }
+
+    private func continueAfterLegalSheetIfNeeded() {
+        guard continuesAfterLegalSheet else { return }
+        continuesAfterLegalSheet = false
+        onLogin()
     }
 
     private var emojiLayout: [LoginEmojiLayout] {
@@ -117,6 +144,12 @@ struct LoginView: View {
             .init(asset: "LoginEmoji10", center: .init(x: 201.5, y: 226.5), size: 67)
         ]
     }
+}
+
+private enum LoginSheetDestination: String, Identifiable {
+    case legalConsent
+
+    var id: String { rawValue }
 }
 
 private struct LoginEmojiLayout {

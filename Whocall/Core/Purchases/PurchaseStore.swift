@@ -258,6 +258,23 @@ final class PurchaseStore {
         alertMessage = nil
     }
 
+    func clearLocalAccountData(accountID: String) async {
+        defaults.removeObject(forKey: "\(Self.creditBalanceKey).account.\(accountID)")
+        defaults.removeObject(forKey: "\(Self.processedCreditTransactionsKey).account.\(accountID)")
+
+        if isConfigured, revenueCatAccountID != nil {
+            _ = try? await Purchases.shared.logOut()
+        }
+
+        activeAccountID = nil
+        revenueCatAccountID = nil
+        isPremium = false
+        creditBalance = 0
+        subscriptionHistory = []
+        creditPurchaseHistory = []
+        subscriptionManagementURL = nil
+    }
+
     private func ensureConfigured() -> Bool {
         guard isConfigured else {
             alertMessage = "RevenueCat public SDK anahtarı bu build'e eklenmemiş. Anahtarı REVENUECAT_PUBLIC_SDK_KEY build ayarıyla güvenli biçimde sağlayın."

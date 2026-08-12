@@ -8,6 +8,7 @@ struct OTPView: View {
     let phoneNumber: String
     let onAuthenticated: () -> Void
     private let authService: any AuthServicing
+    private let legalAccountService: any LegalAccountServicing
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isCodeFocused: Bool
@@ -20,12 +21,14 @@ struct OTPView: View {
         verificationID: String,
         phoneNumber: String,
         onAuthenticated: @escaping () -> Void,
-        authService: any AuthServicing = AuthServiceFactory.live()
+        authService: any AuthServicing = AuthServiceFactory.live(),
+        legalAccountService: any LegalAccountServicing = LegalAccountServiceFactory.live()
     ) {
         self.verificationID = verificationID
         self.phoneNumber = phoneNumber
         self.onAuthenticated = onAuthenticated
         self.authService = authService
+        self.legalAccountService = legalAccountService
     }
 
     var body: some View {
@@ -142,6 +145,9 @@ struct OTPView: View {
 
         do {
             try await authService.verify(verificationID: verificationID, code: code)
+            if LegalAcceptancePreference.hasPending() {
+                try await legalAccountService.recordCurrentAcceptance()
+            }
             onAuthenticated()
         } catch {
             errorMessage = error.localizedDescription
