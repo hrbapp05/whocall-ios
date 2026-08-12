@@ -32,34 +32,19 @@ struct OnboardingHero: View {
     }
 
     private var phoneFade: some View {
-        let isDetailsPage = page == .details
-        let gradientHeight: CGFloat = isDetailsPage ? 272 : 210
-        let totalHeight: CGFloat = isDetailsPage ? 574 : 546
-        let centerY: CGFloat = isDetailsPage ? 587 : 601
-
         return VStack(spacing: 0) {
             LinearGradient(
-                stops: isDetailsPage
-                    ? [
-                        .init(color: .clear, location: 0),
-                        .init(color: .white.opacity(0.18), location: 0.16),
-                        .init(color: .white.opacity(0.82), location: 0.58),
-                        .init(color: .white, location: 0.86)
-                    ]
-                    : [
-                        .init(color: .clear, location: 0),
-                        .init(color: .white.opacity(0.78), location: 0.56),
-                        .init(color: .white, location: 1)
-                    ],
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .white, location: 0.5),
+                    .init(color: .white, location: 1)
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: gradientHeight)
-
-            Color.white
         }
-        .frame(width: 402, height: totalHeight)
-        .position(x: 201, y: centerY)
+        .frame(width: 402, height: 546)
+        .position(x: 201, y: 601)
     }
 
     @ViewBuilder

@@ -36,7 +36,7 @@ enum AuthError: LocalizedError, Equatable {
         case .expiredCode:
             "Doğrulama kodunun süresi dolmuş. Lütfen yeni kod isteyin."
         case .tooManyRequests:
-            "Çok fazla deneme yapıldı. Lütfen biraz sonra tekrar deneyin."
+            "Güvenlik nedeniyle bu cihaz veya numara için yeni SMS istekleri geçici olarak durduruldu. Bu sınır Blaze planından bağımsızdır; lütfen bir süre bekleyin."
         case .networkUnavailable:
             "İnternet bağlantısı kurulamadı. Bağlantınızı kontrol edip tekrar deneyin."
         case .appVerificationFailed:
@@ -54,6 +54,14 @@ enum AuthError: LocalizedError, Equatable {
         case .verificationFailed:
             "Doğrulama tamamlanamadı. Lütfen bilgilerinizi kontrol edip tekrar deneyin."
         }
+    }
+}
+
+enum PhoneVerificationRetryPolicy {
+    static let tooManyRequestsCooldown: TimeInterval = 15 * 60
+
+    static func cooldown(for error: AuthError) -> TimeInterval? {
+        error == .tooManyRequests ? tooManyRequestsCooldown : nil
     }
 }
 
@@ -92,6 +100,7 @@ struct FirebasePhoneAuthService: AuthServicing, @unchecked Sendable {
             throw AuthError.invalidPhoneNumber
         }
 
+        Auth.auth().languageCode = "tr"
         return try await withCheckedThrowingContinuation { continuation in
             PhoneAuthProvider.provider().verifyPhoneNumber("+\(digits)", uiDelegate: nil) { verificationID, error in
                 if let error {

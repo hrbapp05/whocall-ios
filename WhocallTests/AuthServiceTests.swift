@@ -25,6 +25,14 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertEqual(TurkishPhoneNumberFormatter.display("5065"), "(506) 5")
     }
 
+    func testTooManyRequestsStartsProtectiveCooldown() {
+        XCTAssertEqual(
+            PhoneVerificationRetryPolicy.cooldown(for: .tooManyRequests),
+            15 * 60
+        )
+        XCTAssertNil(PhoneVerificationRetryPolicy.cooldown(for: .networkUnavailable))
+    }
+
 #if canImport(FirebaseAuth)
     func testFirebaseAppVerificationErrorsUseActionableMessage() {
         let firebaseError = NSError(
@@ -43,6 +51,15 @@ final class AuthServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(FirebasePhoneAuthService.localized(firebaseError), .billingRequired)
+    }
+
+    func testFirebaseTooManyRequestsIsNotReportedAsProjectQuota() {
+        let firebaseError = NSError(
+            domain: "FIRAuthErrorDomain",
+            code: AuthErrorCode.tooManyRequests.rawValue
+        )
+
+        XCTAssertEqual(FirebasePhoneAuthService.localized(firebaseError), .tooManyRequests)
     }
 
     func testUnknownFirebaseErrorExposesNonPIITechnicalCode() {

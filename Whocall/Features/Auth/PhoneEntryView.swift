@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Combine
 
 struct PhoneEntryView: View {
     private let referenceSize = CGSize(width: 402, height: 874)
@@ -14,6 +15,8 @@ struct PhoneEntryView: View {
     @State private var verificationID: String?
     @State private var isSending = false
     @State private var keyboardHeight: CGFloat = 0
+    @State private var clock = Date()
+    @AppStorage("phoneVerificationRetryAfter") private var retryAfterTimestamp = 0.0
 
     init(
         onAuthenticated: @escaping () -> Void,
@@ -31,6 +34,8 @@ struct PhoneEntryView: View {
                 ? min(575.5, max(405, availableReferenceHeight - 44))
                 : 575.5
             let isReady = localDigits.count == 10
+            let retrySeconds = remainingRetrySeconds
+            let isCoolingDown = retrySeconds > 0
             let continueButtonWidth: CGFloat = isReady || isSending ? 345 : 126
 
             ZStack {
@@ -89,7 +94,7 @@ struct PhoneEntryView: View {
                         if isSending {
                             ProgressView().tint(.white)
                         } else {
-                            Text("Devam Et")
+                            Text(isCoolingDown ? retryLabel(seconds: retrySeconds) : "Devam Et")
                         }
                     }
                     .font(.system(size: 16, weight: .semibold))
@@ -98,7 +103,7 @@ struct PhoneEntryView: View {
                     .background(.black, in: .capsule)
                 }
                 .buttonStyle(.plain)
-                .disabled(!isReady || isSending)
+                .disabled(!isReady || isSending || isCoolingDown)
                 .opacity(isReady || isSending ? 1 : 0.46)
                 .position(x: 201.5, y: continueButtonY)
                 .animation(.spring(response: 0.52, dampingFraction: 0.78), value: isReady)
@@ -118,6 +123,12 @@ struct PhoneEntryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardHeight = 0
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { date in
+            clock = date
+            if retryAfterTimestamp > 0, date.timeIntervalSince1970 >= retryAfterTimestamp {
+                retryAfterTimestamp = 0
+            }
         }
         .navigationDestination(isPresented: isShowingOTP) {
             if let verificationID {
@@ -140,6 +151,9 @@ struct PhoneEntryView: View {
 
     private var localDigits: String { String(phoneNumber.filter(\.isNumber).prefix(10)) }
     private var e164Number: String { "+90\(localDigits)" }
+    private var remainingRetrySeconds: Int {
+        max(0, Int(ceil(retryAfterTimestamp - clock.timeIntervalSince1970)))
+    }
 
     private var isShowingOTP: Binding<Bool> {
         Binding(
@@ -157,8 +171,15 @@ struct PhoneEntryView: View {
         }
     }
 
+    private func retryLabel(seconds: Int) -> String {
+        let minutes = seconds / 60
+        let remainder = seconds % 60
+        return String(format: "%02d:%02d sonra dene", minutes, remainder)
+    }
+
     @MainActor
     private func sendCode() async {
+        guard !isSending, remainingRetrySeconds == 0 else { return }
         isPhoneFocused = false
         isSending = true
         defer { isSending = false }
@@ -167,6 +188,12 @@ struct PhoneEntryView: View {
             verificationID = try await authService.sendVerificationCode(to: e164Number)
             errorMessage = nil
         } catch {
+            if let authError = error as? AuthError,
+               let cooldown = PhoneVerificationRetryPolicy.cooldown(for: authError) {
+                let now = Date()
+                clock = now
+                retryAfterTimestamp = now.addingTimeInterval(cooldown).timeIntervalSince1970
+            }
             errorMessage = error.localizedDescription
         }
     }
