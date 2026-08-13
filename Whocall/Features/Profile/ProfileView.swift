@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct ProfileView: View {
     let onSignOut: () -> Void
@@ -9,7 +8,6 @@ struct ProfileView: View {
     @State private var hasLoadedVisibility = false
     @State private var isUpdatingVisibility = false
     @State private var isPhoneVerificationPresented = false
-    @State private var isCallerIDInfoPresented = false
     @State private var verificationMessage: String?
     @State private var isDeleteConfirmationPresented = false
     @State private var isDeletingAccount = false
@@ -53,22 +51,6 @@ struct ProfileView: View {
 
                     Toggle("Arama sonuçlarında görünürlük", isOn: $isVisible)
                         .disabled(isUpdatingVisibility)
-
-                    Button {
-                        isCallerIDInfoPresented = true
-                    } label: {
-                        HStack {
-                            Label("Arayan Kimliği Uzantısı", systemImage: "phone.connection")
-                            Spacer()
-                            Text("Bilgi")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .buttonStyle(.plain)
                 }
 
                 Section("Satın Alımlar") {
@@ -81,7 +63,7 @@ struct ProfileView: View {
                 }
 
                 Section("Destek") {
-                    Link(destination: URL(string: "mailto:support@levelappstuido.com")!) {
+                    Link(destination: URL(string: "mailto:support@levelappstudio.com")!) {
                         Label("Bize Ulaşın", systemImage: "envelope")
                     }
                     NavigationLink {
@@ -125,7 +107,6 @@ struct ProfileView: View {
                     }
                 }
             }
-            .sheet(isPresented: $isCallerIDInfoPresented) { callerIDInformation }
             .alert("WhoCall", isPresented: verificationAlertBinding) {
                 Button("Tamam", role: .cancel) { verificationMessage = nil }
             } message: {
@@ -153,35 +134,6 @@ struct ProfileView: View {
                 updateVisibility(newValue, revertingTo: oldValue)
             }
         }
-    }
-
-    private var callerIDInformation: some View {
-        NavigationStack {
-            VStack(spacing: 22) {
-                Image(systemName: "phone.badge.checkmark")
-                    .font(.system(size: 54))
-                    .foregroundStyle(DesignTokens.ColorToken.brandBlue)
-                    .padding(.top, 22)
-                Text("Arayan Kimliği Uzantısı")
-                    .font(.title2.bold())
-                Text("Bu özellik, iPhone’un arama ekranında WhoCall verileriyle eşleşen numaraların kimliğini göstermek için kullanılır. iOS güvenliği nedeniyle izin, cihaz ayarlarından kullanıcı tarafından açılır.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                Button("WhoCall Ayarlarını Aç") {
-                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                    UIApplication.shared.open(url)
-                }
-                .buttonStyle(PrimaryButtonStyle(background: DesignTokens.ColorToken.brandBlue))
-                Spacer()
-            }
-            .padding(20)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Bitti") { isCallerIDInfoPresented = false }
-                }
-            }
-        }
-        .presentationDetents([.medium])
     }
 
     private func verifyPhoneNumber() {

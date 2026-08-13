@@ -77,7 +77,7 @@ struct LegalDocumentView: View {
                     .background(.white, in: .rect(cornerRadius: 22))
                 }
 
-                Link("support@levelappstuido.com", destination: URL(string: "mailto:support@levelappstuido.com")!)
+                Link("support@levelappstudio.com", destination: URL(string: "mailto:support@levelappstudio.com")!)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DesignTokens.ColorToken.brandBlue)
                     .frame(maxWidth: .infinity)
@@ -112,11 +112,11 @@ private let termsSections: [LegalSectionContent] = [
     .init(id: "community", title: "Topluluk içerikleri", body: "Yorum, etiket veya rapor gönderdiğinizde içeriğin makul ölçüde doğru olduğuna ve üçüncü kişilerin haklarını ihlal etmediğine dikkat etmelisiniz. Küfür, hakaret, reklam, yanıltıcı rapor ve hukuka aykırı içerikler kaldırılabilir; ilgili hesap sınırlandırılabilir."),
     .init(id: "purchases", title: "Krediler ve Premium", body: "Krediler nakde çevrilemez ve devredilemez. Premium abonelikler, satın alma ekranında belirtilen dönem boyunca yenilenir ve Apple Hesabı ayarlarından yönetilir. Ödemeler Apple tarafından işlenir; zorunlu haller dışında iade koşulları Apple politikalarına tabidir."),
     .init(id: "termination", title: "Hesabın kapatılması", body: "Bu koşullara veya yürürlükteki hukuka aykırı kullanımda erişim sınırlandırılabilir. Profil bölümünden hesabınızı silebilirsiniz. Hesaba bağlı yorum ve raporlar silinir; kimlikle ilişkilendirilmeyen topluluk istatistikleri, Apple satın alma kayıtları ve yasal olarak saklanması gereken işlemler ilgili saklama sürelerince korunabilir."),
-    .init(id: "law", title: "Uygulanacak hukuk ve iletişim", body: "Koşullar Türkiye Cumhuriyeti hukukuna tabidir ve zorunlu tüketici haklarını sınırlamaz. Sorularınızı support@levelappstuido.com adresine gönderebilirsiniz."),
+    .init(id: "law", title: "Uygulanacak hukuk ve iletişim", body: "Koşullar Türkiye Cumhuriyeti hukukuna tabidir ve zorunlu tüketici haklarını sınırlamaz. Sorularınızı support@levelappstudio.com adresine gönderebilirsiniz."),
 ]
 
 private let kvkkSections: [LegalSectionContent] = [
-    .init(id: "controller", title: "Veri sorumlusu", body: "WhoCall hizmeti bakımından veri sorumlusu BLAVI LLC’dir. KVKK kapsamındaki başvurularınızı support@levelappstuido.com adresine iletebilirsiniz."),
+    .init(id: "controller", title: "Veri sorumlusu", body: "WhoCall hizmeti bakımından veri sorumlusu BLAVI LLC’dir. KVKK kapsamındaki başvurularınızı support@levelappstudio.com adresine iletebilirsiniz."),
     .init(id: "data", title: "İşlenen kişisel veriler", body: "Kendi telefon numaranız, SMS doğrulama durumu, Firebase kullanıcı kimliğiniz, adınız ve soyadınız; sorgu ve topluluk katkılarınız; Premium/ürün kimlikleri, abonelik durumu ve kredi hareketleri; güvenlik, hata ve kötüye kullanım önleme için gerekli teknik kayıtlar işlenebilir. WhoCall telefon rehberinize erişmez."),
     .init(id: "purpose", title: "İşleme amaçları", body: "Hesabınızı doğrulamak, numara sorgulama hizmetini sunmak, görünürlük tercihinizi uygulamak, yorum/etiket/rapor özelliklerini çalıştırmak, satın alımları ve kredileri yönetmek, dolandırıcılık ve kötüye kullanımı önlemek, destek sağlamak ve hukuki yükümlülükleri yerine getirmek."),
     .init(id: "basis", title: "Yöntem ve hukuki sebep", body: "Veriler uygulama ve bağlı hizmetler üzerinden otomatik yöntemlerle elde edilir. İşleme; sözleşmenin kurulması veya ifası, hukuki yükümlülük, bir hakkın tesisi veya korunması, temel haklara zarar vermemek kaydıyla meşru menfaat ve gerektiğinde ayrı olarak alınan açık rıza şartlarına dayanabilir."),
