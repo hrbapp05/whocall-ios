@@ -22,7 +22,7 @@ test("landing page includes product copy and legal links", async () => {
   assert.match(html, /href="\/privacy-policy"/);
   assert.match(html, /href="\/terms-of-use"/);
   assert.match(html, /\/assets\/hero-app-screen\.png/);
-  assert.match(html, /support@levelappstuido\.com/);
+  assert.match(html, /support@levelappstudio\.com/);
 });
 
 test("privacy policy describes actual app data practices", async () => {
@@ -38,6 +38,8 @@ test("terms page covers subscriptions and community use", async () => {
   assert.match(html, /Terms of Use/);
   assert.match(html, /Premium subscriptions/);
   assert.match(html, /Community content/);
+  assert.match(html, /zero tolerance for objectionable content and abusive users/);
+  assert.match(html, /review reports within 24 hours/);
   assert.match(html, /Standard Licensed Application End User License Agreement/);
 });
 

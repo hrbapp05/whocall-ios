@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 export type LegalSection = {
@@ -19,15 +20,15 @@ export function LegalPage({
   return (
     <main className="legal-shell" lang="en">
       <header className="legal-header">
-        <a className="brand" href="/">
+        <Link className="brand" href="/">
           <Image src="/assets/whocall-app-icon.png" alt="" width={38} height={38} priority />
           <span>whoCall</span>
-        </a>
-        <a className="legal-back" href="/">← Back to home</a>
+        </Link>
+        <Link className="legal-back" href="/">← Back to home</Link>
       </header>
       <section className="legal-hero">
         <div>
-          <span className="legal-updated">Last updated: August 12, 2026</span>
+          <span className="legal-updated">Last updated: August 19, 2026</span>
           <h1>{title}</h1>
           <p>{intro}</p>
         </div>
@@ -48,7 +49,7 @@ export function LegalPage({
       </div>
       <footer className="legal-footer">
         <span>© 2026 BLAVI LLC. All rights reserved.</span>
-        <a href="mailto:support@levelappstuido.com">support@levelappstuido.com</a>
+        <a href="mailto:support@levelappstudio.com">support@levelappstudio.com</a>
       </footer>
     </main>
   );

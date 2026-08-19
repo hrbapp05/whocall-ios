@@ -41,7 +41,7 @@ export default function Home() {
           <a href="#uygulama">Uygulama</a>
           <a href="/privacy-policy">Privacy Policy</a>
           <a href="/terms-of-use">Terms of Use</a>
-          <a href="mailto:support@levelappstuido.com">İletişim</a>
+          <a href="mailto:support@levelappstudio.com">İletişim</a>
         </nav>
         <details className="mobile-menu">
           <summary aria-label="Menüyü aç">Menü</summary>
@@ -199,7 +199,7 @@ export default function Home() {
           </div>
           <div>
             <h3>İletişim</h3>
-            <a href="mailto:support@levelappstuido.com">support@levelappstuido.com</a>
+            <a href="mailto:support@levelappstudio.com">support@levelappstudio.com</a>
           </div>
         </div>
         <div className="footer-bottom">

@@ -13,7 +13,7 @@ const sections: LegalSection[] = [
     title: "Scope and controller",
     content: <>
       <p>This Privacy Policy applies to the WhoCall iOS application and WhoCall website provided by BLAVI LLC. WhoCall is a phone-number lookup and community information service currently offered in Türkiye.</p>
-      <p>For privacy questions or requests, contact us at <a href="mailto:support@levelappstuido.com">support@levelappstuido.com</a>.</p>
+      <p>For privacy questions or requests, contact us at <a href="mailto:support@levelappstudio.com">support@levelappstudio.com</a>.</p>
     </>,
   },
   {
@@ -82,7 +82,7 @@ const sections: LegalSection[] = [
     title: "Your choices and rights",
     content: <>
       <p>Depending on applicable law, you may request access, correction, deletion, restriction, or objection, and may withdraw consent. You can manage search visibility in the app.</p>
-      <p>To request account or data deletion, email <a href="mailto:support@levelappstuido.com?subject=WhoCall%20Account%20Deletion%20Request">support@levelappstuido.com</a> with the subject “WhoCall Account Deletion Request.” Do not include your full phone number in the email body. We may ask you to verify the request through the app or another secure step.</p>
+      <p>To request account or data deletion, email <a href="mailto:support@levelappstudio.com?subject=WhoCall%20Account%20Deletion%20Request">support@levelappstudio.com</a> with the subject “WhoCall Account Deletion Request.” Do not include your full phone number in the email body. We may ask you to verify the request through the app or another secure step.</p>
     </>,
   },
   {

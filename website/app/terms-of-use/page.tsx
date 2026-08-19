@@ -48,7 +48,9 @@ const sections: LegalSection[] = [
     title: "Community content",
     content: <>
       <p>When you submit a comment, label, or report, you represent that you reasonably believe it is accurate, that you have the right to submit it, and that it does not unlawfully disclose personal data.</p>
-      <p>You retain ownership of your content. You grant BLAVI LLC a worldwide, non-exclusive, royalty-free license to host, reproduce, format, display, moderate, and use that content as necessary to operate, secure, and improve WhoCall. We may remove content or restrict accounts that violate these Terms.</p>
+      <p>WhoCall has zero tolerance for objectionable content and abusive users. Profanity, harassment, threats, hate speech, doxing, spam, deceptive content, and unlawful content are prohibited.</p>
+      <p>You can flag an objectionable comment or label and block an abusive user from within the app. Blocking immediately removes that user&apos;s content from your feed and notifies our moderation process. We review reports within 24 hours, remove violating content, and may eject the user who provided it.</p>
+      <p>You retain ownership of your content. You grant BLAVI LLC a worldwide, non-exclusive, royalty-free license to host, reproduce, format, display, moderate, and use that content as necessary to operate, secure, and improve WhoCall.</p>
     </>,
   },
   {
@@ -95,7 +97,7 @@ const sections: LegalSection[] = [
     title: "Governing law, changes, and contact",
     content: <>
       <p>These Terms are governed by the laws of Türkiye, without limiting mandatory consumer rights or jurisdiction rules that apply to you. We may update these Terms as WhoCall or applicable rules change. Material changes will be announced through an appropriate channel.</p>
-      <p>Questions about these Terms can be sent to <a href="mailto:support@levelappstuido.com">support@levelappstuido.com</a>.</p>
+      <p>Questions about these Terms can be sent to <a href="mailto:support@levelappstudio.com">support@levelappstudio.com</a>.</p>
     </>,
   },
 ];
