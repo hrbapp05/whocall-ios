@@ -4,7 +4,8 @@ WhoCall applies zero tolerance to objectionable community content and abusive us
 
 ## Response target
 
-- Review every report before its `reviewBy` timestamp, no later than 24 hours after the first report.
+- Review every report within the internal 4-hour response target and always before its `reviewBy` timestamp.
+- The absolute removal and abusive-account action limit is 24 hours after the first report, as required by App Review Guideline 1.2.
 - Reports remain `pending` until a moderator records a decision.
 - A report or block immediately hides the affected content for the reporting user.
 - Blocking a comment author immediately hides that author's comments for the reporting user and notifies the moderation queue.
@@ -27,4 +28,4 @@ Record the `reportID` and one of those decision values. The function stores the 
 4. Confirm no pending item has crossed its `reviewBy` timestamp.
 5. Escalate credible threats, unlawful disclosures, or repeat abuse to the account owner and legal contact immediately.
 
-Configure a Cloud Logging alert for `community_moderation_report_created` so a new report notifies the operating team instead of relying only on manual queue checks.
+The enabled Cloud Monitoring log alert for `community_moderation_report_created` notifies `support@levelappstudio.com` when a new report reaches the moderation queue.
