@@ -3,8 +3,16 @@
 const {createHmac} = require("node:crypto");
 
 const NAME_PATTERN = /^[\p{L}\p{M}'’.\-]+(?: [\p{L}\p{M}'’.\-]+)*$/u;
-const CURRENT_TERMS_VERSION = "2026-08-12.1";
+const CURRENT_TERMS_VERSION = "2026-08-19.1";
 const CURRENT_PRIVACY_NOTICE_VERSION = "2026-08-12.1";
+
+const COMMUNITY_MODERATION_REASONS = [
+  "Küfür, hakaret veya nefret söylemi",
+  "Taciz veya tehdit",
+  "Kişisel bilgi paylaşımı",
+  "Spam veya yanıltıcı içerik",
+  "Diğer",
+];
 
 const BLOCKED_COMMUNITY_TERMS = [
   "amk", "aq", "orospu", "sik", "siktir", "piç", "pic", "yavşak", "yavsak",
@@ -85,6 +93,16 @@ function containsBlockedCommunityLanguage(value) {
   });
 }
 
+function normalizeCommunityModerationReason(value) {
+  if (typeof value !== "string") return null;
+  const clean = value.trim().replace(/\s+/g, " ").normalize("NFC");
+  return COMMUNITY_MODERATION_REASONS.includes(clean) ? clean : null;
+}
+
+function normalizeCommunityContentType(value) {
+  return value === "comment" || value === "tag" ? value : null;
+}
+
 function normalizeLegalAcceptance(value) {
   if (!value || typeof value !== "object") return null;
   if (value.termsVersion !== CURRENT_TERMS_VERSION ||
@@ -103,6 +121,7 @@ function normalizeLegalAcceptance(value) {
 }
 
 module.exports = {
+  COMMUNITY_MODERATION_REASONS,
   CURRENT_PRIVACY_NOTICE_VERSION,
   CURRENT_TERMS_VERSION,
   containsBlockedCommunityLanguage,
@@ -111,6 +130,8 @@ module.exports = {
   namesFromDisplayName,
   publicProfileFromAuthUser,
   normalizeForModeration,
+  normalizeCommunityContentType,
+  normalizeCommunityModerationReason,
   normalizeName,
   normalizePhone,
   normalizeLegalAcceptance,

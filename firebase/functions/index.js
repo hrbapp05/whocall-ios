@@ -1,8 +1,9 @@
 "use strict";
 
 const {initializeApp} = require("firebase-admin/app");
-const {FieldValue, getFirestore} = require("firebase-admin/firestore");
+const {FieldValue, getFirestore, Timestamp} = require("firebase-admin/firestore");
 const {getAuth} = require("firebase-admin/auth");
+const logger = require("firebase-functions/logger");
 const {defineSecret} = require("firebase-functions/params");
 const {HttpsError, onCall} = require("firebase-functions/v2/https");
 const {
@@ -10,6 +11,8 @@ const {
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
+  normalizeCommunityContentType,
+  normalizeCommunityModerationReason,
   normalizeLegalAcceptance,
   normalizeName,
   normalizePhone,
@@ -272,11 +275,28 @@ exports.deleteWhoCallAccount = onCall(accountDeletionOptions, async (request) =>
       },
   );
 
+  await deleteQueryInBatches(
+      db.collection("communityModerationReports").where("reporterUIDHash", "==", reportID),
+  );
+  await deleteQueryInBatches(
+      db.collection("communityModerationReports").where("authorUID", "==", uid),
+      (batch, document) => {
+        batch.set(document.ref, {
+          authorUID: FieldValue.delete(),
+          authorID: FieldValue.delete(),
+          targetAccountDeleted: true,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+      },
+  );
+
   const batch = db.batch();
   batch.delete(db.collection("userLegalAcceptances").doc(uid));
+  batch.delete(db.collection("communityUserSafety").doc(uid));
   const rateLimitOperations = [
     "publish", "lookup", "unpublish", "visibility", "community-read",
     "community-comment", "community-tag", "community-report",
+    "community-content-report", "community-user-block",
     "legal-acceptance", "account-delete",
   ];
   for (const operation of rateLimitOperations) {
@@ -291,6 +311,41 @@ exports.deleteWhoCallAccount = onCall(accountDeletionOptions, async (request) =>
 
 function communityReference(number, secret) {
   return db.collection("numberCommunities").doc(`v1_${keyedDigest(number, secret)}`);
+}
+
+function communitySafetyReference(uid) {
+  return db.collection("communityUserSafety").doc(uid);
+}
+
+function communityAuthorID(uid, secret) {
+  return keyedDigest(`community-author:${uid}`, secret);
+}
+
+function commentContentKey(communityID, commentID) {
+  return `comment:${communityID}:${commentID}`;
+}
+
+function tagContentKey(communityID, tag, secret) {
+  const normalizedTag = tag.normalize("NFKC").toLocaleLowerCase("tr-TR");
+  return `tag:${communityID}:${keyedDigest(normalizedTag, secret)}`;
+}
+
+function moderationReportID(uid, contentKey, action, secret) {
+  return `v1_${keyedDigest(`${uid}:${contentKey}:${action}`, secret)}`;
+}
+
+function moderationDeadline() {
+  return Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000);
+}
+
+function logModerationReport(reportID, action, contentType, communityID) {
+  logger.warn("community_moderation_report_created", {
+    reportID,
+    action,
+    contentType,
+    communityID,
+    responseRequiredWithinHours: 24,
+  });
 }
 
 function cleanCommunityText(value, minLength, maxLength) {
@@ -319,19 +374,45 @@ exports.getNumberCommunity = onCall(callableOptions, async (request) => {
   const secret = hmacKey.value();
   await enforceRateLimit(request.auth.uid, "community-read", 30, secret);
   const reference = communityReference(number, secret);
-  const [community, comments] = await Promise.all([
+  const [community, comments, safety] = await Promise.all([
     reference.get(),
     reference.collection("comments").orderBy("createdAt", "desc").limit(50).get(),
+    communitySafetyReference(request.auth.uid).get(),
   ]);
+  const safetyData = safety.data() || {};
+  const blockedAuthorIDs = new Set(
+      Array.isArray(safetyData.blockedAuthorIDs) ? safetyData.blockedAuthorIDs : [],
+  );
+  const hiddenContentKeys = new Set(
+      Array.isArray(safetyData.hiddenContentKeys) ? safetyData.hiddenContentKeys : [],
+  );
+  const storedTags = community.data() && Array.isArray(community.data().tags) ?
+    community.data().tags : [];
   return {
-    tags: community.data() && Array.isArray(community.data().tags) ? community.data().tags : [],
+    tags: storedTags.filter((tag) =>
+      !hiddenContentKeys.has(tagContentKey(reference.id, tag, secret)),
+    ),
     reportCount: Math.max(0, Number(community.data() && community.data().reportCount || 0)),
-    comments: comments.docs.map((document) => ({
-      id: document.id,
-      author: document.data().author,
-      body: document.data().body,
-      time: relativeTime(document.data().createdAt),
-    })),
+    comments: comments.docs
+        .map((document) => {
+          const data = document.data();
+          const authorID = data.authorID ||
+            (data.uid ? communityAuthorID(data.uid, secret) : null);
+          return {
+            id: document.id,
+            authorID,
+            author: data.author,
+            body: data.body,
+            time: relativeTime(data.createdAt),
+            isHidden: data.isHidden === true,
+          };
+        })
+        .filter((comment) => comment.authorID &&
+          !comment.isHidden &&
+          !blockedAuthorIDs.has(comment.authorID) &&
+          !hiddenContentKeys.has(commentContentKey(reference.id, comment.id)),
+        )
+        .map(({isHidden, ...comment}) => comment),
   };
 });
 
@@ -352,6 +433,7 @@ exports.addNumberComment = onCall(callableOptions, async (request) => {
   const batch = db.batch();
   batch.set(commentReference, {
     uid: request.auth.uid,
+    authorID: communityAuthorID(request.auth.uid, secret),
     author,
     body,
     createdAt: FieldValue.serverTimestamp(),
@@ -426,3 +508,218 @@ exports.reportNumber = onCall(callableOptions, async (request) => {
     reportCount,
   };
 });
+
+exports.reportCommunityContent = onCall(callableOptions, async (request) => {
+  await authenticatedPhone(request);
+  const number = normalizePhone(request.data && request.data.number);
+  const contentType = normalizeCommunityContentType(
+      request.data && request.data.contentType,
+  );
+  const reason = normalizeCommunityModerationReason(request.data && request.data.reason);
+  if (!number || !contentType || !reason) {
+    throw new HttpsError("invalid-argument", "Geçerli içerik ve şikâyet nedeni zorunludur.");
+  }
+
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "community-content-report", 12, secret);
+  const reference = communityReference(number, secret);
+  let authorID = null;
+  let authorUID = null;
+  let contentKey;
+  let contentRefPath;
+  let contentSnapshot;
+  let commentReference = null;
+
+  if (contentType === "comment") {
+    const commentID = request.data && request.data.commentID;
+    if (typeof commentID !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(commentID)) {
+      throw new HttpsError("invalid-argument", "Geçerli bir yorum seçin.");
+    }
+    commentReference = reference.collection("comments").doc(commentID);
+    const comment = await commentReference.get();
+    if (!comment.exists || comment.data().isHidden === true) {
+      throw new HttpsError("not-found", "Yorum artık kullanılamıyor.");
+    }
+    authorUID = comment.data().uid || null;
+    authorID = comment.data().authorID ||
+      (authorUID ? communityAuthorID(authorUID, secret) : null);
+    contentKey = commentContentKey(reference.id, comment.id);
+    contentRefPath = commentReference.path;
+    contentSnapshot = cleanCommunityText(comment.data().body, 2, 500);
+  } else {
+    const tag = cleanCommunityText(request.data && request.data.tag, 2, 24);
+    const community = await reference.get();
+    const tags = community.exists && Array.isArray(community.data().tags) ?
+      community.data().tags : [];
+    const storedTag = tag && tags.find((value) =>
+      value.localeCompare(tag, "tr", {sensitivity: "base"}) === 0,
+    );
+    if (!storedTag) throw new HttpsError("not-found", "Etiket artık kullanılamıyor.");
+    contentKey = tagContentKey(reference.id, storedTag, secret);
+    contentRefPath = reference.path;
+    contentSnapshot = storedTag;
+  }
+
+  const reportID = moderationReportID(
+      request.auth.uid,
+      contentKey,
+      "content-report",
+      secret,
+  );
+  const reportReference = db.collection("communityModerationReports").doc(reportID);
+  const existingReport = await reportReference.get();
+  const batch = db.batch();
+  batch.set(communitySafetyReference(request.auth.uid), {
+    hiddenContentKeys: FieldValue.arrayUnion(contentKey),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
+  batch.set(reportReference, {
+    reporterUIDHash: keyedDigest(request.auth.uid, secret),
+    authorID,
+    authorUID,
+    communityID: reference.id,
+    contentType,
+    contentKey,
+    contentRefPath,
+    contentSnapshot,
+    reason,
+    action: "contentReported",
+    status: "pending",
+    createdAt: existingReport.exists ? existingReport.data().createdAt :
+      FieldValue.serverTimestamp(),
+    lastReportedAt: FieldValue.serverTimestamp(),
+    reviewBy: moderationDeadline(),
+  }, {merge: true});
+  if (!existingReport.exists && commentReference) {
+    batch.set(commentReference, {
+      moderationReportCount: FieldValue.increment(1),
+      latestModerationReportAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  }
+  await batch.commit();
+  if (!existingReport.exists) {
+    logModerationReport(reportID, "contentReported", contentType, reference.id);
+  }
+  return {reported: true};
+});
+
+exports.blockCommunityAuthor = onCall(callableOptions, async (request) => {
+  await authenticatedPhone(request);
+  const number = normalizePhone(request.data && request.data.number);
+  const commentID = request.data && request.data.commentID;
+  const reason = normalizeCommunityModerationReason(request.data && request.data.reason);
+  if (!number || typeof commentID !== "string" ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(commentID) || !reason) {
+    throw new HttpsError("invalid-argument", "Geçerli kullanıcı ve engelleme nedeni zorunludur.");
+  }
+
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "community-user-block", 12, secret);
+  const reference = communityReference(number, secret);
+  const commentReference = reference.collection("comments").doc(commentID);
+  const comment = await commentReference.get();
+  if (!comment.exists || comment.data().isHidden === true) {
+    throw new HttpsError("not-found", "Yorum artık kullanılamıyor.");
+  }
+  const authorUID = comment.data().uid;
+  if (!authorUID) throw new HttpsError("failed-precondition", "Yorum sahibi engellenemiyor.");
+  if (authorUID === request.auth.uid) {
+    throw new HttpsError("failed-precondition", "Kendi hesabınızı engelleyemezsiniz.");
+  }
+
+  const authorID = comment.data().authorID || communityAuthorID(authorUID, secret);
+  const contentKey = commentContentKey(reference.id, comment.id);
+  const reportID = moderationReportID(request.auth.uid, contentKey, "user-block", secret);
+  const reportReference = db.collection("communityModerationReports").doc(reportID);
+  const existingReport = await reportReference.get();
+  const batch = db.batch();
+  batch.set(communitySafetyReference(request.auth.uid), {
+    blockedAuthorIDs: FieldValue.arrayUnion(authorID),
+    hiddenContentKeys: FieldValue.arrayUnion(contentKey),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
+  batch.set(reportReference, {
+    reporterUIDHash: keyedDigest(request.auth.uid, secret),
+    authorID,
+    authorUID,
+    communityID: reference.id,
+    contentType: "comment",
+    contentKey,
+    contentRefPath: commentReference.path,
+    contentSnapshot: cleanCommunityText(comment.data().body, 2, 500),
+    reason,
+    action: "userBlocked",
+    status: "pending",
+    createdAt: existingReport.exists ? existingReport.data().createdAt :
+      FieldValue.serverTimestamp(),
+    lastReportedAt: FieldValue.serverTimestamp(),
+    reviewBy: moderationDeadline(),
+  }, {merge: true});
+  if (!existingReport.exists) {
+    batch.set(commentReference, {
+      moderationReportCount: FieldValue.increment(1),
+      latestModerationReportAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  }
+  await batch.commit();
+  if (!existingReport.exists) {
+    logModerationReport(reportID, "userBlocked", "comment", reference.id);
+  }
+  return {blocked: true, authorID};
+});
+
+exports.moderateCommunityReport = onCall(
+    {...callableOptions, timeoutSeconds: 30},
+    async (request) => {
+      if (!request.auth || request.auth.token.communityModerator !== true) {
+        throw new HttpsError("permission-denied", "Moderasyon yetkisi gerekli.");
+      }
+      const reportID = request.data && request.data.reportID;
+      const decision = request.data && request.data.decision;
+      const allowedDecisions = new Set([
+        "dismiss",
+        "remove-content",
+        "remove-content-and-suspend-user",
+      ]);
+      if (typeof reportID !== "string" || !/^v1_[a-f0-9]{64}$/.test(reportID) ||
+          !allowedDecisions.has(decision)) {
+        throw new HttpsError("invalid-argument", "Geçerli rapor ve karar zorunludur.");
+      }
+
+      const reportReference = db.collection("communityModerationReports").doc(reportID);
+      const report = await reportReference.get();
+      if (!report.exists) throw new HttpsError("not-found", "Moderasyon raporu bulunamadı.");
+      const data = report.data();
+      if (decision === "remove-content-and-suspend-user") {
+        if (!data.authorUID) {
+          throw new HttpsError("failed-precondition", "İçerik sahibi bulunamadı.");
+        }
+        await getAuth().updateUser(data.authorUID, {disabled: true});
+      }
+
+      const batch = db.batch();
+      if (decision !== "dismiss") {
+        if (data.contentType === "comment" && data.contentRefPath) {
+          batch.set(db.doc(data.contentRefPath), {
+            isHidden: true,
+            moderatedAt: FieldValue.serverTimestamp(),
+          }, {merge: true});
+        } else if (data.contentType === "tag" && data.contentRefPath &&
+            data.contentSnapshot) {
+          batch.set(db.doc(data.contentRefPath), {
+            tags: FieldValue.arrayRemove(data.contentSnapshot),
+            moderatedAt: FieldValue.serverTimestamp(),
+          }, {merge: true});
+        }
+      }
+      batch.set(reportReference, {
+        status: decision === "dismiss" ? "dismissed" : "resolved",
+        decision,
+        resolvedAt: FieldValue.serverTimestamp(),
+        resolverUIDHash: keyedDigest(request.auth.uid, hmacKey.value()),
+      }, {merge: true});
+      await batch.commit();
+      logger.info("community_moderation_report_resolved", {reportID, decision});
+      return {resolved: true};
+    },
+);

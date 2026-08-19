@@ -7,6 +7,8 @@ const {
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
+  normalizeCommunityContentType,
+  normalizeCommunityModerationReason,
   normalizeLegalAcceptance,
   normalizeName,
   normalizePhone,
@@ -77,16 +79,27 @@ test("blocks Turkish insults despite spacing and casing", () => {
   assert.equal(containsBlockedCommunityLanguage("Güvenilir tesisatçı"), false);
 });
 
+test("accepts only supported community moderation requests", () => {
+  assert.equal(
+      normalizeCommunityModerationReason("  Taciz veya tehdit  "),
+      "Taciz veya tehdit",
+  );
+  assert.equal(normalizeCommunityModerationReason("Beğenmedim"), null);
+  assert.equal(normalizeCommunityContentType("comment"), "comment");
+  assert.equal(normalizeCommunityContentType("tag"), "tag");
+  assert.equal(normalizeCommunityContentType("profile"), null);
+});
+
 test("accepts only the current, separately acknowledged legal documents", () => {
   assert.deepEqual(normalizeLegalAcceptance({
-    termsVersion: "2026-08-12.1",
+    termsVersion: "2026-08-19.1",
     privacyNoticeVersion: "2026-08-12.1",
     termsAccepted: true,
     privacyNoticeAcknowledged: true,
     appVersion: "1.0 (25)",
     locale: "tr-TR",
   }), {
-    termsVersion: "2026-08-12.1",
+    termsVersion: "2026-08-19.1",
     privacyNoticeVersion: "2026-08-12.1",
     appVersion: "1.0 (25)",
     locale: "tr-TR",
