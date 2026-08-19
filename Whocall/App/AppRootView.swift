@@ -156,11 +156,7 @@ struct AppRootView: View {
             } else if !hasCompletedOnboarding && !skipsOnboardingForUITest {
                 OnboardingView { hasCompletedOnboarding = true }
             } else if session.isResolvingAuthentication {
-                ZStack {
-                    Color(uiColor: .systemBackground).ignoresSafeArea()
-                    ProgressView("Oturum kontrol ediliyor…")
-                        .tint(DesignTokens.ColorToken.brandBlue)
-                }
+                SplashScreenView()
             } else if !session.isAuthenticated {
                 AuthFlowView {
                     Task {
@@ -255,6 +251,7 @@ private struct UITestShowcaseView: View {
     var body: some View {
         NavigationStack {
             switch screen {
+            case "splash": SplashScreenView()
             case "onboarding": OnboardingView(onComplete: {})
             case "onboarding2": OnboardingView(initialPage: .scan, onComplete: {})
             case "onboarding3": OnboardingView(initialPage: .details, onComplete: {})

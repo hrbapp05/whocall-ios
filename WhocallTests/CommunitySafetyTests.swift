@@ -16,4 +16,27 @@ struct CommunitySafetyTests {
         #expect(CommunityContentModerator.containsBlockedLanguage("s i k t i r"))
         #expect(!CommunityContentModerator.containsBlockedLanguage("Güvenilir tesisatçı"))
     }
+
+    @Test func moderationReasonsMatchTheServerContract() {
+        #expect(CommunityModerationReason.allCases.map(\.rawValue) == [
+            "Küfür, hakaret veya nefret söylemi",
+            "Taciz veya tehdit",
+            "Kişisel bilgi paylaşımı",
+            "Spam veya yanıltıcı içerik",
+            "Diğer",
+        ])
+    }
+
+    @Test func commentsCarryAnOpaqueAuthorIdentifierForBlocking() {
+        let comment = Comment(
+            id: "comment-1",
+            authorID: "opaque-author-id",
+            initial: "G",
+            author: "Göktuğ S.",
+            body: "Örnek yorum",
+            time: "Şimdi"
+        )
+
+        #expect(comment.authorID == "opaque-author-id")
+    }
 }

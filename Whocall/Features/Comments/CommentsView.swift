@@ -3,6 +3,8 @@ import SwiftUI
 struct CommentRow: View {
     let comment: Comment
     let color: Color
+    let onReport: () -> Void
+    let onBlockAuthor: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -20,9 +22,29 @@ struct CommentRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Text(comment.time)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+            VStack(alignment: .trailing, spacing: 8) {
+                Text(comment.time)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+
+                Menu {
+                    Button(action: onReport) {
+                        Label("Yorumu Şikâyet Et", systemImage: "flag")
+                    }
+                    if comment.authorID != nil {
+                        Button(role: .destructive, action: onBlockAuthor) {
+                            Label("Kullanıcıyı Engelle", systemImage: "person.crop.circle.badge.xmark")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .circle)
+                }
+                .accessibilityLabel("Yorum güvenlik işlemleri")
+            }
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 11)
@@ -42,6 +64,7 @@ struct CommentsView: View {
     @State private var draftComment = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var safetyAction: CommunitySafetyAction?
 
     private let avatarColors = [
         Color(red: 0.73, green: 0.74, blue: 0.96),
@@ -71,7 +94,22 @@ struct CommentsView: View {
                         .padding(.top, 64)
                     } else {
                         ForEach(Array(comments.enumerated()), id: \.element.id) { index, comment in
-                            CommentRow(comment: comment, color: avatarColors[index % avatarColors.count])
+                            CommentRow(
+                                comment: comment,
+                                color: avatarColors[index % avatarColors.count],
+                                onReport: {
+                                    safetyAction = .reportComment(
+                                        comment: comment,
+                                        phoneNumber: phoneNumber
+                                    )
+                                },
+                                onBlockAuthor: {
+                                    safetyAction = .blockCommentAuthor(
+                                        comment: comment,
+                                        phoneNumber: phoneNumber
+                                    )
+                                }
+                            )
                                 .figmaEntrance(delay: min(Double(index) * 0.025, 0.18), distance: 10)
                         }
                     }
@@ -86,6 +124,9 @@ struct CommentsView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $isComposerPresented) { composer }
+        .sheet(item: $safetyAction) { action in
+            CommunitySafetySheet(action: action)
+        }
         .task { await communityStore.refresh(for: phoneNumber) }
     }
 

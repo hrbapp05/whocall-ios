@@ -12,6 +12,7 @@ import FirebaseCore
 
 struct Comment: Identifiable, Codable, Hashable, Sendable {
     let id: String
+    let authorID: String?
     let initial: String
     let author: String
     let body: String
@@ -19,17 +20,29 @@ struct Comment: Identifiable, Codable, Hashable, Sendable {
 
     init(
         id: String = UUID().uuidString,
+        authorID: String? = nil,
         initial: String,
         author: String,
         body: String,
         time: String
     ) {
         self.id = id
+        self.authorID = authorID
         self.initial = initial
         self.author = author
         self.body = body
         self.time = time
     }
+}
+
+enum CommunityModerationReason: String, CaseIterable, Identifiable, Sendable {
+    case abusiveLanguage = "Küfür, hakaret veya nefret söylemi"
+    case harassment = "Taciz veya tehdit"
+    case personalInformation = "Kişisel bilgi paylaşımı"
+    case spam = "Spam veya yanıltıcı içerik"
+    case other = "Diğer"
+
+    var id: String { rawValue }
 }
 
 enum CommunityStoreError: LocalizedError {
@@ -235,6 +248,89 @@ final class CommunityStore {
 #endif
     }
 
+    func report(
+        comment: Comment,
+        phoneNumber: String,
+        reason: CommunityModerationReason
+    ) async throws {
+        let key = canonical(phoneNumber)
+        let previousComments = localComments[key] ?? []
+        localComments[key]?.removeAll { $0.id == comment.id }
+#if canImport(FirebaseFunctions)
+        guard FirebaseApp.app() != nil else {
+            localComments[key] = previousComments
+            throw CommunityStoreError.serviceUnavailable
+        }
+        do {
+            _ = try await callAuthenticated("reportCommunityContent", data: [
+                "number": phoneNumber,
+                "contentType": "comment",
+                "commentID": comment.id,
+                "reason": reason.rawValue,
+            ])
+        } catch {
+            localComments[key] = previousComments
+            throw localized(error)
+        }
+#endif
+    }
+
+    func report(
+        tag: String,
+        phoneNumber: String,
+        reason: CommunityModerationReason
+    ) async throws {
+        let key = canonical(phoneNumber)
+        let previousTags = localTags[key] ?? []
+        localTags[key]?.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
+#if canImport(FirebaseFunctions)
+        guard FirebaseApp.app() != nil else {
+            localTags[key] = previousTags
+            throw CommunityStoreError.serviceUnavailable
+        }
+        do {
+            _ = try await callAuthenticated("reportCommunityContent", data: [
+                "number": phoneNumber,
+                "contentType": "tag",
+                "tag": tag,
+                "reason": reason.rawValue,
+            ])
+        } catch {
+            localTags[key] = previousTags
+            throw localized(error)
+        }
+#endif
+    }
+
+    func block(
+        authorOf comment: Comment,
+        phoneNumber: String,
+        reason: CommunityModerationReason
+    ) async throws {
+        guard let authorID = comment.authorID, !authorID.isEmpty else {
+            throw CommunityStoreError.invalidContent
+        }
+        let key = canonical(phoneNumber)
+        let previousComments = localComments[key] ?? []
+        localComments[key]?.removeAll { $0.authorID == authorID }
+#if canImport(FirebaseFunctions)
+        guard FirebaseApp.app() != nil else {
+            localComments[key] = previousComments
+            throw CommunityStoreError.serviceUnavailable
+        }
+        do {
+            _ = try await callAuthenticated("blockCommunityAuthor", data: [
+                "number": phoneNumber,
+                "commentID": comment.id,
+                "reason": reason.rawValue,
+            ])
+        } catch {
+            localComments[key] = previousComments
+            throw localized(error)
+        }
+#endif
+    }
+
 #if canImport(FirebaseFunctions)
     private func callAuthenticated(_ name: String, data: [String: String]) async throws -> HTTPSCallableResult {
         try validateVerifiedPhoneSession()
@@ -311,6 +407,7 @@ final class CommunityStore {
                   let time = value["time"] as? String else { return nil }
             return Comment(
                 id: id,
+                authorID: value["authorID"] as? String,
                 initial: String(author.prefix(1)).uppercased(with: Locale(identifier: "tr_TR")),
                 author: PersonNameFormatter.maskFullName(author),
                 body: body,

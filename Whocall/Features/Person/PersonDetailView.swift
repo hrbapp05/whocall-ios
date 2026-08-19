@@ -15,6 +15,7 @@ struct PersonDetailView: View {
     @State private var isTagsPresented = false
     @State private var newContactDraft: NewContactDraft?
     @State private var alertMessage: String?
+    @State private var safetyAction: CommunitySafetyAction?
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -87,6 +88,9 @@ struct PersonDetailView: View {
             NewContactComposer(draft: draft) {
                 newContactDraft = nil
             }
+        }
+        .sheet(item: $safetyAction) { action in
+            CommunitySafetySheet(action: action)
         }
         .task { await communityStore.refresh(for: number) }
     }
@@ -256,7 +260,30 @@ struct PersonDetailView: View {
                 Text("“\(comment.body)”").font(.caption).lineLimit(2)
             }
             Spacer()
-            Text(comment.time).font(.caption2).foregroundStyle(.secondary)
+            VStack(alignment: .trailing, spacing: 7) {
+                Text(comment.time).font(.caption2).foregroundStyle(.secondary)
+                Menu {
+                    Button {
+                        safetyAction = .reportComment(comment: comment, phoneNumber: number)
+                    } label: {
+                        Label("Yorumu Şikâyet Et", systemImage: "flag")
+                    }
+                    if comment.authorID != nil {
+                        Button(role: .destructive) {
+                            safetyAction = .blockCommentAuthor(comment: comment, phoneNumber: number)
+                        } label: {
+                            Label("Kullanıcıyı Engelle", systemImage: "person.crop.circle.badge.xmark")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .circle)
+                }
+                .accessibilityLabel("Yorum güvenlik işlemleri")
+            }
         }
         .padding(14)
         .background(.white, in: .rect(cornerRadius: 18))
@@ -314,6 +341,7 @@ private struct TagsView: View {
     @State private var draft = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var safetyAction: CommunitySafetyAction?
 
     var body: some View {
         NavigationStack {
@@ -331,7 +359,22 @@ private struct TagsView: View {
                     .frame(maxWidth: .infinity)
                 } else {
                     FlowLayout(spacing: 8) {
-                        ForEach(tags, id: \.self) { FigmaTag(title: $0) }
+                        ForEach(tags, id: \.self) { tag in
+                            HStack(spacing: 3) {
+                                FigmaTag(title: tag)
+                                Button {
+                                    safetyAction = .reportTag(tag: tag, phoneNumber: phoneNumber)
+                                } label: {
+                                    Image(systemName: "flag")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 25, height: 25)
+                                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .circle)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("\(tag) etiketini şikâyet et")
+                            }
+                        }
                     }
                 }
 
@@ -362,6 +405,9 @@ private struct TagsView: View {
                 }
             }
             .task { await communityStore.refresh(for: phoneNumber) }
+            .sheet(item: $safetyAction) { action in
+                CommunitySafetySheet(action: action)
+            }
         }
         .presentationDetents([.medium, .large])
     }

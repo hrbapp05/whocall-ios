@@ -57,7 +57,7 @@ struct LegalDocumentView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Son güncelleme: 12 Ağustos 2026")
+                    Text("Son güncelleme: 19 Ağustos 2026")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DesignTokens.ColorToken.brandBlue)
                 }
@@ -109,7 +109,8 @@ private let termsSections: [LegalSectionContent] = [
     .init(id: "service", title: "WhoCall hizmeti", body: "WhoCall, Türkiye cep telefonu numaraları için kısaltılmış isim sonuçları ile topluluk etiketleri, yorumları, raporları ve güven göstergeleri sunabilir. Sonuçların her zaman mevcut, güncel veya hatasız olacağı garanti edilmez; önemli kararların tek dayanağı olarak kullanılmamalıdır."),
     .init(id: "account", title: "Hesap ve doğrulama", body: "Hesap oluştururken yalnızca kontrolünüzde olan kendi telefon numaranızı kullanabilirsiniz. SMS doğrulama kodunu gizli tutmalı; yanlış veya yanıltıcı profil bilgileri vermemelisiniz."),
     .init(id: "use", title: "Kabul edilebilir kullanım", body: "WhoCall yalnızca kişisel ve hukuka uygun amaçlarla kullanılabilir. Taciz, tehdit, ayrımcılık, kişisel bilgileri ifşa etme, toplu veri toplama, sonuçları satma, güvenlik veya ödeme kontrollerini aşma ve otomatik sorgu gönderme yasaktır."),
-    .init(id: "community", title: "Topluluk içerikleri", body: "Yorum, etiket veya rapor gönderdiğinizde içeriğin makul ölçüde doğru olduğuna ve üçüncü kişilerin haklarını ihlal etmediğine dikkat etmelisiniz. Küfür, hakaret, reklam, yanıltıcı rapor ve hukuka aykırı içerikler kaldırılabilir; ilgili hesap sınırlandırılabilir."),
+    .init(id: "community", title: "Topluluk içerikleri ve sıfır tolerans", body: "WhoCall; sakıncalı içeriklere ve kötüye kullanan kullanıcılara karşı sıfır tolerans uygular. Yorum, etiket veya rapor gönderdiğinizde içeriğin makul ölçüde doğru olduğuna ve üçüncü kişilerin haklarını ihlal etmediğine dikkat etmelisiniz. Küfür, hakaret, tehdit, taciz, nefret söylemi, kişisel bilgileri ifşa etme, spam, yanıltıcı rapor ve hukuka aykırı içerikler kesinlikle yasaktır."),
+    .init(id: "moderation", title: "Şikâyet, engelleme ve moderasyon", body: "Uygunsuz yorumları ve etiketleri uygulama içinden şikâyet edebilirsiniz. Bir kullanıcıyı engellediğinizde o kullanıcının içerikleri ekranınızdan hemen kaldırılır ve geliştiriciye moderasyon bildirimi gönderilir. Bildirimler en geç 24 saat içinde incelenir; ihlal eden içerik kaldırılır ve içeriği sağlayan kullanıcı uygulamadan çıkarılabilir."),
     .init(id: "purchases", title: "Krediler ve Premium", body: "Krediler nakde çevrilemez ve devredilemez. Premium abonelikler, satın alma ekranında belirtilen dönem boyunca yenilenir ve Apple Hesabı ayarlarından yönetilir. Ödemeler Apple tarafından işlenir; zorunlu haller dışında iade koşulları Apple politikalarına tabidir."),
     .init(id: "termination", title: "Hesabın kapatılması", body: "Bu koşullara veya yürürlükteki hukuka aykırı kullanımda erişim sınırlandırılabilir. Profil bölümünden hesabınızı silebilirsiniz. Hesaba bağlı yorum ve raporlar silinir; kimlikle ilişkilendirilmeyen topluluk istatistikleri, Apple satın alma kayıtları ve yasal olarak saklanması gereken işlemler ilgili saklama sürelerince korunabilir."),
     .init(id: "law", title: "Uygulanacak hukuk ve iletişim", body: "Koşullar Türkiye Cumhuriyeti hukukuna tabidir ve zorunlu tüketici haklarını sınırlamaz. Sorularınızı support@levelappstudio.com adresine gönderebilirsiniz."),

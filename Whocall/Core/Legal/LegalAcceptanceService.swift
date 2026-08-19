@@ -10,14 +10,14 @@ import FirebaseCore
 #endif
 
 enum LegalPolicy {
-    static let termsVersion = "2026-08-12.1"
+    static let termsVersion = "2026-08-19.1"
     static let privacyNoticeVersion = "2026-08-12.1"
 
     static let privacyPolicyURL = URL(
-        string: "https://whocall-turkiye.mitisen.chatgpt.site/privacy-policy"
+        string: "https://levelappstudio.com/whocall/privacy-policy.html"
     )!
     static let termsOfUseURL = URL(
-        string: "https://whocall-turkiye.mitisen.chatgpt.site/terms-of-use"
+        string: "https://levelappstudio.com/whocall/terms-of-use.html"
     )!
 }
 
