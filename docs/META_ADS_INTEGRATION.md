@@ -1,28 +1,45 @@
-# Meta reklam ölçümü entegrasyon planı
+# Meta Ads ve Conversions API entegrasyonu
 
-Meta hesabı bağlanmadan önce kod veya üretim secret'ı eklenmeyecektir. Bağlantı sırasında Meta App ID, iOS Client Token, Dataset/Pixel ID ve sunucu tarafı Conversions API erişim anahtarı alınır. CAPI anahtarı yalnızca Firebase Secret Manager'da saklanır; iOS uygulamasına, GitHub'a veya Railway paneline konmaz.
+Son güncelleme: 22 Ağustos 2026
 
-## Önerilen olaylar
+## Üretim yapılandırması
 
-- Uygulama açılışı
-- Telefon doğrulamasının tamamlanması (`CompleteRegistration`)
-- Başarılı numara sorgusu (`Search`)
-- Kredi satın alma ve doğrulanmış abonelik (`Purchase` / `Subscribe`)
+- Meta uygulaması: `WhoCall`
+- Meta uygulama durumu: **Published**
+- Meta App ID: `2267534710688963`
+- iOS bundle ID: `com.levelappstudio.whocall`
+- App Store ID: `6800227705`
+- Meta Dataset ID: `1399269285480560`
+- Meta reklam hesabı uygulamaya yetkilendirildi.
+- Dataset, WhoCall mobil uygulamasına ve reklam hesabına bağlandı.
+- RevenueCat projesinde **Meta Ads > Conversions API** entegrasyonu etkinleştirildi.
+- Conversions API erişim anahtarı yalnızca Meta ve RevenueCat panellerinde tutulur; iOS uygulamasına, Firebase'e veya GitHub'a yazılmaz.
+- Meta Client Token yalnızca git tarafından yok sayılan `Config/Secrets.xcconfig` dosyasındadır. Client Token public istemci yapılandırması olsa da repoya eklenmez.
 
-StoreKit/RevenueCat satın alma olayları yalnızca doğrulanmış işlem sonucundan sonra gönderilir. SDK ve CAPI aynı olayı gönderiyorsa tekil `event_id` ile tekilleştirme yapılır.
+## Veri akışı
+
+1. Kullanıcı yasal metinleri kabul edip giriş akışını tamamladıktan sonra iOS, App Tracking Transparency iznini ister.
+2. İzin verilirse Meta SDK uygulama aktivasyon sinyalini gönderir ve RevenueCat'e Meta anonim kimliği ile kullanılabilir cihaz reklam kimlikleri aktarılır.
+3. RevenueCat, doğruladığı abonelik ve tüketilebilir kredi satın alma olaylarını sunucu tarafında Meta Conversions API'ye yollar.
+4. Meta'ya gönderilen varsayılan satın alma olayları `StartTrial`, `Subscribe` ve `fb_mobile_purchase` olur.
+
+Meta SDK'nın otomatik satın alma/gelir kaydı hem uygulama yapılandırmasında hem Meta panelinde kapalıdır. Böylece RevenueCat'in gönderdiği doğrulanmış satın alma olayları ikinci kez sayılmaz.
 
 ## Gizlilik sınırları
 
-- Sorgulanan üçüncü kişiye ait telefon numarası, ad, soyad, yorum, etiket veya arama sonucu Meta'ya gönderilmez.
-- Olay parametrelerinde ham telefon numarası kullanılmaz.
-- Kullanıcı eşleştirme verileri ancak geçerli hukuki dayanak ve gerekli izinler sağlanırsa normalleştirilip SHA-256 ile hashlenerek sunucudan gönderilir.
-- App Tracking Transparency izni ile reklam ölçümü/onay ekranları mevcut gizlilik metni ve App Store privacy beyanlarıyla birlikte gözden geçirilir.
-- Limited Data Use ve Türkiye hedeflemesi Meta hesabı bağlantısı sırasında kontrol edilir.
+- Sorgulanan telefon numarası, kişi adı, sorgu sonucu, yorum, etiket ve rapor Meta'ya gönderilmez.
+- Kullanıcının kendi telefon numarası, e-posta adresi veya adı Meta eşleştirme alanı olarak kullanılmaz.
+- ATT izni vermeyen kullanıcılar uygulamayı eksiksiz kullanmaya devam eder.
+- RevenueCat'teki **Send events when ATT consent is not authorized** seçeneği kapalıdır.
+- Meta Events Manager'da otomatik gelişmiş eşleştirme ve telefon/e-posta/ad eşleştirmesi kapalıdır.
+- Conversions API anahtarı hiçbir istemci paketine veya kaynak kontrolüne girmez.
 
-## Hesap açıldığında tamamlanacaklar
+## Doğrulama
 
-1. Meta uygulamasını WhoCall bundle ID `com.levelappstudio.whocall` ile bağlamak.
-2. SDK yapılandırmasını `.xcconfig` üzerinden public App ID/Client Token ile yapmak.
-3. Firebase üzerinde CAPI aktarım işlevini ve Secret Manager anahtarını oluşturmak.
-4. Test Events ekranında SDK/CAPI olaylarını ve tekilleştirmeyi doğrulamak.
-5. Gizlilik politikası, ATT metni ve App Store privacy cevaplarını son veri akışına göre güncellemek.
+- Meta iOS SDK `18.1.0` sürümüne sabitlendi.
+- iOS ARM64 Debug derlemesi `CODE_SIGNING_ALLOWED=NO` ile başarıyla tamamlandı.
+- Meta SDK ve RevenueCat cihaz kimliği bağlantısı derleme sırasında doğrulandı.
+- RevenueCat panelinde entegrasyon etkin ve olay listesi hazır.
+- App Store Connect gizlilik etiketinde `Device ID` ile `Purchase History`; reklam ölçümü, analitik, kullanıcıyla bağlantı ve izleme kullanımlarına göre yayınlandı.
+
+Canlı olay doğrulaması yeni bir uygulama kurulumu, ATT onayı ve gerçek ya da sandbox satın alma gerektirir. İlk uygun satın alma sonrasında RevenueCat müşteri geçmişindeki Meta teslimat satırı ve Meta Events Manager > Test Events ekranı birlikte kontrol edilmelidir. Meta panelinde işlenen olayların görünmesi gecikebilir.

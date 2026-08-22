@@ -57,8 +57,9 @@ const sections: LegalSection[] = [
         <li>Google Firebase for phone authentication, server functions, and data infrastructure.</li>
         <li>RevenueCat and Apple for in-app purchases, subscription status, and entitlements.</li>
         <li>WhoCall API and hosting providers for secure lookup processing and service delivery.</li>
+        <li>Meta SDK and RevenueCat&apos;s Meta Conversions API integration, only when you authorize Apple&apos;s App Tracking Transparency permission, to measure app activations and verified subscription or purchase outcomes from our advertising campaigns.</li>
       </ul>
-      <p>These providers may process data outside Türkiye under their contractual and legal safeguards. We do not sell personal information to advertising networks.</p>
+      <p>We do not send a searched phone number, lookup result, person name, comment, label, or report to Meta. Meta purchase events are generated from RevenueCat&apos;s verified transaction lifecycle, not from WhoCall lookup data. These providers may process data outside Türkiye under their contractual and legal safeguards. We do not sell personal information to advertising networks.</p>
     </>,
   },
   {
@@ -82,6 +83,7 @@ const sections: LegalSection[] = [
     title: "Your choices and rights",
     content: <>
       <p>Depending on applicable law, you may request access, correction, deletion, restriction, or objection, and may withdraw consent. You can manage search visibility in the app.</p>
+      <p>Advertising measurement is optional. You can decline Apple&apos;s App Tracking Transparency prompt without losing access to WhoCall, and you can change that choice later in iOS Settings.</p>
       <p>To request account or data deletion, email <a href="mailto:support@levelappstudio.com?subject=WhoCall%20Account%20Deletion%20Request">support@levelappstudio.com</a> with the subject “WhoCall Account Deletion Request.” Do not include your full phone number in the email body. We may ask you to verify the request through the app or another secure step.</p>
     </>,
   },

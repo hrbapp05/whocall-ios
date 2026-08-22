@@ -57,7 +57,7 @@ struct LegalDocumentView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Son güncelleme: 19 Ağustos 2026")
+                    Text("Son güncelleme: 22 Ağustos 2026")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(DesignTokens.ColorToken.brandBlue)
                 }
@@ -121,14 +121,14 @@ private let kvkkSections: [LegalSectionContent] = [
     .init(id: "data", title: "İşlenen kişisel veriler", body: "Kendi telefon numaranız, SMS doğrulama durumu, Firebase kullanıcı kimliğiniz, adınız ve soyadınız; sorgu ve topluluk katkılarınız; Premium/ürün kimlikleri, abonelik durumu ve kredi hareketleri; güvenlik, hata ve kötüye kullanım önleme için gerekli teknik kayıtlar işlenebilir. WhoCall telefon rehberinize erişmez."),
     .init(id: "purpose", title: "İşleme amaçları", body: "Hesabınızı doğrulamak, numara sorgulama hizmetini sunmak, görünürlük tercihinizi uygulamak, yorum/etiket/rapor özelliklerini çalıştırmak, satın alımları ve kredileri yönetmek, dolandırıcılık ve kötüye kullanımı önlemek, destek sağlamak ve hukuki yükümlülükleri yerine getirmek."),
     .init(id: "basis", title: "Yöntem ve hukuki sebep", body: "Veriler uygulama ve bağlı hizmetler üzerinden otomatik yöntemlerle elde edilir. İşleme; sözleşmenin kurulması veya ifası, hukuki yükümlülük, bir hakkın tesisi veya korunması, temel haklara zarar vermemek kaydıyla meşru menfaat ve gerektiğinde ayrı olarak alınan açık rıza şartlarına dayanabilir."),
-    .init(id: "transfer", title: "Aktarımlar", body: "Hizmetin sunulması amacıyla sınırlı veriler Google Firebase, Apple, RevenueCat, WhoCall API ve barındırma/altyapı sağlayıcılarıyla paylaşılabilir. Yurt dışı aktarımlar yürürlükteki mevzuatta öngörülen güvencelere uygun şekilde gerçekleştirilir."),
+    .init(id: "transfer", title: "Aktarımlar", body: "Hizmetin sunulması amacıyla sınırlı veriler Google Firebase, Apple, RevenueCat, WhoCall API ve barındırma/altyapı sağlayıcılarıyla paylaşılabilir. Reklam ölçümü izni verirseniz Meta SDK ve RevenueCat Conversion API üzerinden uygulama etkinleştirme, abonelik ve satın alma sinyalleri Meta ile paylaşılabilir. Yurt dışı aktarımlar yürürlükteki mevzuatta öngörülen güvencelere uygun şekilde gerçekleştirilir."),
     .init(id: "rights", title: "Haklarınız", body: "KVKK’nın 11. maddesi kapsamındaki bilgi alma, düzeltme, silme, yok etme ve itiraz haklarınızı kullanabilirsiniz. Uygulama içinden arama görünürlüğünü kapatabilir ve hesabınızı silebilirsiniz. Başvurularda güvenli kimlik doğrulaması istenebilir."),
 ]
 
 private let privacySections: [LegalSectionContent] = [
     .init(id: "collection", title: "Topladığımız bilgiler", body: "WhoCall; hesap ve telefon doğrulama bilgilerini, sağladığınız ad-soyadı, gerçekleştirdiğiniz sorguları ve topluluk katkılarını, satın alma durumunu ve hizmet güvenliği için gereken sınırlı teknik bilgileri işler. Ödeme kartı bilgilerinizi almaz ve telefon rehberinizi toplamaz."),
     .init(id: "visibility", title: "Arama görünürlüğü", body: "Kendi numaranızı SMS ile doğrulayıp ad ve soyadınızı eklediğinizde, görünürlük açıkken doğrulanmış profiliniz veri tabanı sonucuna öncelik verebilir. Sonuçlarda soyadının yalnızca baş harfi gösterilir. Görünürlüğü profilinizden kapatabilirsiniz."),
-    .init(id: "providers", title: "Hizmet sağlayıcıları", body: "Firebase kimlik doğrulama ve sunucu altyapısı; RevenueCat ve Apple satın alma/abonelik işlemleri; WhoCall API numara sorguları için kullanılır. Sağlayıcılardan, verileri bu politikayla uyumlu şekilde korumaları beklenir. Kişisel bilgiler reklam ağlarına satılmaz."),
+    .init(id: "providers", title: "Hizmet sağlayıcıları", body: "Firebase kimlik doğrulama ve sunucu altyapısı; RevenueCat ve Apple satın alma/abonelik işlemleri; WhoCall API numara sorguları için kullanılır. İzin vermeniz halinde Meta SDK ve RevenueCat Conversion API, reklam kampanyalarımızın uygulama indirme ve satın alma sonuçlarını ölçmek için kullanılır. Sorguladığınız numara, arama sonucu, kişi adı, yorum veya etiket Meta’ya gönderilmez. Kişisel bilgiler reklam ağlarına satılmaz."),
     .init(id: "retention", title: "Saklama ve güvenlik", body: "Veriler hizmeti sunmak, hesabı sürdürmek, anlaşmazlıkları çözmek, kötüye kullanımı önlemek veya hukuki yükümlülükleri karşılamak için gereken süreyle sınırlı tutulur. Kimlik doğrulama, erişim kontrolleri, istek sınırları ve takma adlı tanımlayıcılar kullanılır."),
-    .init(id: "choices", title: "Tercihleriniz", body: "Arama görünürlüğünü kapatabilir, hesabınızı uygulama içinden silebilir ve destek adresimiz üzerinden erişim, düzeltme veya silme talebinde bulunabilirsiniz. Açık rızaya dayalı isteğe bağlı bir işlem varsa rızanızı geri çekebilirsiniz."),
+    .init(id: "choices", title: "Tercihleriniz", body: "Arama görünürlüğünü kapatabilir, hesabınızı uygulama içinden silebilir ve destek adresimiz üzerinden erişim, düzeltme veya silme talebinde bulunabilirsiniz. Reklam ölçümü isteğe bağlıdır; Apple’ın Takip Şeffaflığı ekranında izin vermeyebilir veya daha sonra iOS Ayarları’ndan tercihinizi değiştirebilirsiniz. Reddetmeniz WhoCall özelliklerine erişiminizi etkilemez."),
 ]
