@@ -28,13 +28,15 @@ struct HomeFlowView: View {
                 onOutcome: { outcome in
                     switch outcome {
                     case let .found(owner):
-                        guard purchaseStore.authorizeLookupResult() else {
-                            if !path.isEmpty { path.removeLast() }
-                            path.append(.premium)
-                            return
+                        Task { @MainActor in
+                            guard await purchaseStore.authorizeLookupResult() else {
+                                if !path.isEmpty { path.removeLast() }
+                                path.append(.premium)
+                                return
+                            }
+                            recentLookupStore.record(owner: owner)
+                            replaceLookup(with: .result(owner))
                         }
-                        recentLookupStore.record(owner: owner)
-                        replaceLookup(with: .result(owner))
                     case .hidden:
                         replaceLookup(with: .unavailable(.hidden, number))
                     case .notFound:

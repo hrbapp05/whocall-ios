@@ -16,6 +16,7 @@ enum VerifiedNumberDirectoryLookup: Equatable, Sendable {
     case found(PhoneOwner)
     case notRegistered
     case hidden
+    case suppressed
 }
 
 enum VerifiedNumberDirectoryError: LocalizedError, Equatable {
@@ -90,6 +91,7 @@ struct FirebaseVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing 
             throw VerifiedNumberDirectoryError.invalidResponse
         }
         guard found else {
+            if payload["suppressed"] as? Bool == true { return .suppressed }
             return payload["hidden"] as? Bool == true ? .hidden : .notRegistered
         }
         guard let owner = payload["owner"] as? [String: Any],

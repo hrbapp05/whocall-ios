@@ -69,7 +69,7 @@ final class PurchaseConfigurationTests: XCTestCase {
     }
 
     @MainActor
-    func testPurchasedCreditAuthorizesExactlyOneLookup() throws {
+    func testPurchasedCreditAuthorizesExactlyOneLookup() async throws {
         let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -77,13 +77,15 @@ final class PurchaseConfigurationTests: XCTestCase {
         defaults.set(1, forKey: PurchaseStore.creditBalanceKey)
         let store = PurchaseStore(defaults: defaults)
 
-        XCTAssertTrue(store.authorizeLookupResult())
+        let firstAuthorization = await store.authorizeLookupResult()
+        XCTAssertTrue(firstAuthorization)
         XCTAssertEqual(store.creditBalance, 0)
-        XCTAssertFalse(store.authorizeLookupResult())
+        let secondAuthorization = await store.authorizeLookupResult()
+        XCTAssertFalse(secondAuthorization)
     }
 
     @MainActor
-    func testFreeUserCannotRevealLookupResult() throws {
+    func testFreeUserCannotRevealLookupResult() async throws {
         let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -93,7 +95,8 @@ final class PurchaseConfigurationTests: XCTestCase {
         let store = PurchaseStore(defaults: defaults)
 
         XCTAssertFalse(store.hasLookupAccess)
-        XCTAssertFalse(store.authorizeLookupResult())
+        let authorization = await store.authorizeLookupResult()
+        XCTAssertFalse(authorization)
         XCTAssertEqual(store.creditBalance, 0)
     }
 

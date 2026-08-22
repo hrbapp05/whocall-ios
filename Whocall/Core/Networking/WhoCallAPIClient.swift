@@ -85,6 +85,8 @@ struct PhoneLookupService {
             return .found(verifiedOwner.privacySafe)
         case .hidden:
             return .hidden
+        case .suppressed:
+            return .notFound
         case .notRegistered:
             break
         }

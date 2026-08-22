@@ -2,6 +2,11 @@ import Foundation
 import Observation
 import RevenueCat
 
+#if canImport(FirebaseFunctions)
+@preconcurrency import FirebaseFunctions
+import FirebaseCore
+#endif
+
 enum RevenueCatProductID: String, CaseIterable, Sendable {
     case premiumWeekly = "com.levelappstudio.whocall.premium.weekly"
     case premiumMonthly = "com.levelappstudio.whocall.premium.monthly"
@@ -85,8 +90,11 @@ final class PurchaseStore {
     private(set) var isConfigured = false
     private(set) var isLoadingProducts = false
     private(set) var isPurchasing = false
-    private(set) var isPremium = false
-    private(set) var creditBalance: Int
+    private(set) var revenueCatPremium = false
+    private(set) var promotionalPremium = false
+    private(set) var promotionalPremiumExpiresAt: Date?
+    private(set) var purchasedCreditBalance: Int
+    private(set) var promotionalCreditBalance = 0
     private(set) var products: [String: StoreProduct] = [:]
     private(set) var offerings: Offerings?
     private(set) var subscriptionHistory: [SubscriptionPurchaseRecord] = []
@@ -98,6 +106,20 @@ final class PurchaseStore {
     private var activeAccountID: String?
     private var revenueCatAccountID: String?
     private let defaults: UserDefaults
+
+#if canImport(FirebaseFunctions)
+    private let functions = Functions.functions(region: "europe-west1")
+#endif
+
+    var isPremium: Bool {
+        if revenueCatPremium { return true }
+        guard promotionalPremium else { return false }
+        return promotionalPremiumExpiresAt.map { $0 > Date() } ?? true
+    }
+
+    var creditBalance: Int {
+        purchasedCreditBalance + promotionalCreditBalance
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -111,13 +133,15 @@ final class PurchaseStore {
             defaults.set(previousBalance == 5 ? 0 : previousBalance, forKey: Self.creditBalanceKey)
             defaults.set(true, forKey: Self.creditBalanceMigrationKey)
         }
-        creditBalance = defaults.integer(forKey: Self.creditBalanceKey)
+        purchasedCreditBalance = defaults.integer(forKey: Self.creditBalanceKey)
     }
 
     func start(accountID: String? = nil) async {
         switchLocalAccount(to: accountID)
         guard !hasStarted else { return }
         hasStarted = true
+
+        await refreshPromotionalAccess()
 
         guard let publicSDKKey = RevenueCatConfiguration.publicSDKKey() else {
             return
@@ -151,8 +175,8 @@ final class PurchaseStore {
     /// multiple people use the same device.
     func activateAccount(_ accountID: String?) async {
         switchLocalAccount(to: accountID)
-        guard isConfigured else { return }
-        await synchronizeRevenueCatAccount()
+        await refreshPromotionalAccess()
+        if isConfigured { await synchronizeRevenueCatAccount() }
     }
 
     var hasLookupAccess: Bool {
@@ -162,12 +186,14 @@ final class PurchaseStore {
     /// Premium includes unlimited lookups. Otherwise one purchased credit is
     /// consumed immediately before the result is revealed.
     @discardableResult
-    func authorizeLookupResult() -> Bool {
+    func authorizeLookupResult() async -> Bool {
         if isPremium { return true }
-        guard creditBalance > 0 else { return false }
-        creditBalance -= 1
-        defaults.set(creditBalance, forKey: creditStorageKey)
-        return true
+        if purchasedCreditBalance > 0 {
+            purchasedCreditBalance -= 1
+            defaults.set(purchasedCreditBalance, forKey: creditStorageKey)
+            return true
+        }
+        return await consumePromotionalCredit()
     }
 
     func refreshProducts() async {
@@ -183,11 +209,13 @@ final class PurchaseStore {
     }
 
     func refreshCustomerInfo() async {
-        guard isConfigured else { return }
-        do {
-            apply(try await Purchases.shared.customerInfo(fetchPolicy: .fetchCurrent))
-        } catch {
-            alertMessage = "Satın alma bilgileri yenilenemedi. Lütfen bağlantınızı kontrol edip tekrar deneyin."
+        await refreshPromotionalAccess()
+        if isConfigured {
+            do {
+                apply(try await Purchases.shared.customerInfo(fetchPolicy: .fetchCurrent))
+            } catch {
+                alertMessage = "Satın alma bilgileri yenilenemedi. Lütfen bağlantınızı kontrol edip tekrar deneyin."
+            }
         }
     }
 
@@ -214,7 +242,7 @@ final class PurchaseStore {
             let (transaction, customerInfo, userCancelled) = try await Purchases.shared.purchase(product: product)
             guard !userCancelled else { return false }
 
-            let balanceBeforePurchase = creditBalance
+            let balanceBeforePurchase = purchasedCreditBalance
             apply(customerInfo)
             if let amount = productID.creditAmount {
                 guard let transactionID = transaction?.transactionIdentifier else {
@@ -224,7 +252,7 @@ final class PurchaseStore {
                 if !hasProcessedCreditTransaction(transactionID) {
                     _ = grantCreditsOnce(amount, transactionID: transactionID)
                 }
-                if creditBalance > balanceBeforePurchase {
+                if purchasedCreditBalance > balanceBeforePurchase {
                     alertMessage = "\(amount) sorgulama kredisi hesabınıza eklendi."
                 } else {
                     alertMessage = "Bu kredi işlemi daha önce hesabınıza eklenmiş."
@@ -272,8 +300,11 @@ final class PurchaseStore {
 
         activeAccountID = nil
         revenueCatAccountID = nil
-        isPremium = false
-        creditBalance = 0
+        revenueCatPremium = false
+        promotionalPremium = false
+        promotionalPremiumExpiresAt = nil
+        purchasedCreditBalance = 0
+        promotionalCreditBalance = 0
         subscriptionHistory = []
         creditPurchaseHistory = []
         subscriptionManagementURL = nil
@@ -292,11 +323,11 @@ final class PurchaseStore {
         // Unlimited access is therefore valid only when the active entitlement was
         // granted by one of WhoCall's weekly/monthly subscription products.
         if let entitlement = customerInfo.entitlements[Self.premiumEntitlementID] {
-            isPremium = entitlement.isActive && RevenueCatProductID.unlocksPremium(
+            revenueCatPremium = entitlement.isActive && RevenueCatProductID.unlocksPremium(
                 productIdentifier: entitlement.productIdentifier
             )
         } else {
-            isPremium = false
+            revenueCatPremium = false
         }
         subscriptionManagementURL = customerInfo.managementURL
 
@@ -334,7 +365,7 @@ final class PurchaseStore {
     private func switchLocalAccount(to accountID: String?) {
         guard activeAccountID != accountID else { return }
         activeAccountID = accountID
-        creditBalance = defaults.integer(forKey: creditStorageKey)
+        purchasedCreditBalance = defaults.integer(forKey: creditStorageKey)
     }
 
 #if DEBUG
@@ -355,11 +386,54 @@ final class PurchaseStore {
                 revenueCatAccountID = nil
                 apply(customerInfo)
             } else {
-                isPremium = false
+                revenueCatPremium = false
             }
         } catch {
             alertMessage = "Satın alma hesabı güncellenemedi. Lütfen bağlantınızı kontrol edip tekrar deneyin."
         }
+    }
+
+    private func refreshPromotionalAccess() async {
+#if canImport(FirebaseFunctions)
+        guard FirebaseApp.app() != nil else { return }
+        do {
+            let result = try await functions.httpsCallable("getAccountAccessState").call([:])
+            guard let payload = result.data as? [String: Any] else { return }
+            promotionalPremium = payload["promotionalPremiumActive"] as? Bool ?? false
+            promotionalCreditBalance = max(
+                0,
+                payload["promotionalCreditBalance"] as? Int ?? 0
+            )
+            if let rawDate = payload["promotionalPremiumExpiresAt"] as? String {
+                promotionalPremiumExpiresAt = ISO8601DateFormatter().date(from: rawDate)
+            } else {
+                promotionalPremiumExpiresAt = nil
+            }
+        } catch {
+            // Preserve the last server-confirmed state during a temporary outage.
+        }
+#endif
+    }
+
+    private func consumePromotionalCredit() async -> Bool {
+#if canImport(FirebaseFunctions)
+        guard FirebaseApp.app() != nil, promotionalCreditBalance > 0 else { return false }
+        do {
+            let result = try await functions.httpsCallable("consumePromotionalCredit").call([:])
+            guard let payload = result.data as? [String: Any],
+                  let authorized = payload["authorized"] as? Bool else { return false }
+            promotionalPremium = payload["promotionalPremiumActive"] as? Bool ?? promotionalPremium
+            promotionalCreditBalance = max(
+                0,
+                payload["promotionalCreditBalance"] as? Int ?? promotionalCreditBalance
+            )
+            return authorized
+        } catch {
+            return false
+        }
+#else
+        return false
+#endif
     }
 
     private var creditStorageKey: String {
@@ -378,8 +452,8 @@ final class PurchaseStore {
             defaults.stringArray(forKey: processedTransactionsStorageKey) ?? []
         )
         guard processedTransactions.insert(transactionID).inserted else { return false }
-        creditBalance += amount
-        defaults.set(creditBalance, forKey: creditStorageKey)
+        purchasedCreditBalance += amount
+        defaults.set(purchasedCreditBalance, forKey: creditStorageKey)
         defaults.set(Array(processedTransactions), forKey: processedTransactionsStorageKey)
         return true
     }

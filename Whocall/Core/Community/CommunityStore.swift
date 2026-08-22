@@ -81,6 +81,15 @@ enum CommunityTrustLevel: Equatable, Sendable {
         else if reportCount >= 3 { self = .medium }
         else { self = .high }
     }
+
+    init?(serverValue: String) {
+        switch serverValue {
+        case "high": self = .high
+        case "medium": self = .medium
+        case "risky": self = .risky
+        default: return nil
+        }
+    }
 }
 
 enum CommunityContentModerator {
@@ -115,6 +124,7 @@ final class CommunityStore {
     private(set) var localComments: [String: [Comment]] = [:]
     private(set) var localTags: [String: [String]] = [:]
     private(set) var localReportCounts: [String: Int] = [:]
+    private(set) var localTrustOverrides: [String: CommunityTrustLevel] = [:]
     private(set) var isLoading = false
 
 #if canImport(FirebaseFunctions)
@@ -134,7 +144,8 @@ final class CommunityStore {
     }
 
     func trustLevel(for phoneNumber: String) -> CommunityTrustLevel {
-        CommunityTrustLevel(reportCount: reportCount(for: phoneNumber))
+        if let override = localTrustOverrides[canonical(phoneNumber)] { return override }
+        return CommunityTrustLevel(reportCount: reportCount(for: phoneNumber))
     }
 
     func refresh(for phoneNumber: String) async {
@@ -153,6 +164,12 @@ final class CommunityStore {
             localTags[key] = (payload["tags"] as? [String] ?? []).sorted(by: localizedSort)
             localComments[key] = parseComments(payload["comments"] as? [[String: Any]] ?? [])
             localReportCounts[key] = payload["reportCount"] as? Int ?? 0
+            if let value = payload["trustLevel"] as? String,
+               let override = CommunityTrustLevel(serverValue: value) {
+                localTrustOverrides[key] = override
+            } else {
+                localTrustOverrides.removeValue(forKey: key)
+            }
         } catch {
             // Keep the last successful snapshot on screen during a temporary outage.
         }
