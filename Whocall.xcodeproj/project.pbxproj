@@ -9,6 +9,7 @@
 		B000000000000000000000A0 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000A2 /* RevenueCat */; };
 		B000000000000000000000A3 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000A5 /* FirebaseAuth */; };
 		B000000000000000000000A6 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000A7 /* FirebaseFunctions */; };
+		B000000000000000000000A9 /* FacebookCore in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000AA /* FacebookCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,7 +55,7 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		B00000000000000000000020 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000A0 /* RevenueCat in Frameworks */, B000000000000000000000A3 /* FirebaseAuth in Frameworks */, B000000000000000000000A6 /* FirebaseFunctions in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
+		B00000000000000000000020 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000A0 /* RevenueCat in Frameworks */, B000000000000000000000A3 /* FirebaseAuth in Frameworks */, B000000000000000000000A6 /* FirebaseFunctions in Frameworks */, B000000000000000000000A9 /* FacebookCore in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
 		B00000000000000000000021 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
@@ -93,7 +94,7 @@
 			dependencies = ();
 			fileSystemSynchronizedGroups = (B00000000000000000000010 /* Whocall */);
 			name = Whocall;
-			packageProductDependencies = (B000000000000000000000A2 /* RevenueCat */, B000000000000000000000A5 /* FirebaseAuth */, B000000000000000000000A7 /* FirebaseFunctions */,);
+			packageProductDependencies = (B000000000000000000000A2 /* RevenueCat */, B000000000000000000000A5 /* FirebaseAuth */, B000000000000000000000A7 /* FirebaseFunctions */, B000000000000000000000AA /* FacebookCore */,);
 			productName = Whocall;
 			productReference = B00000000000000000000001 /* Whocall.app */;
 			productType = "com.apple.product-type.application";
@@ -137,7 +138,7 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B00000000000000000000031 /* Products */;
-			packageReferences = (B000000000000000000000A1 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */, B000000000000000000000A4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,);
+			packageReferences = (B000000000000000000000A1 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */, B000000000000000000000A4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */, B000000000000000000000A8 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */,);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (B00000000000000000000040 /* Whocall */, B00000000000000000000041 /* WhocallTests */);
@@ -300,6 +301,14 @@
 				version = 12.17.0;
 			};
 		};
+		B000000000000000000000A8 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/facebook/facebook-ios-sdk.git";
+			requirement = {
+				kind = exactVersion;
+				version = 18.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -317,6 +326,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B000000000000000000000A4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFunctions;
+		};
+		B000000000000000000000AA /* FacebookCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B000000000000000000000A8 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

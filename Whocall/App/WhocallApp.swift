@@ -11,6 +11,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        MetaAttributionService.shared.configure(
+            application: application,
+            launchOptions: launchOptions
+        )
 #if canImport(FirebaseAuth)
         if FirebaseApp.app() == nil,
            Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
@@ -22,6 +26,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         }
 #endif
         return true
+    }
+
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        MetaAttributionService.shared.applicationDidBecomeActive()
     }
 
     func application(

@@ -201,6 +201,12 @@ struct AppRootView: View {
             await PendingVerifiedProfileStore.retryIfNeeded()
             await CurrentVerifiedProfileSynchronizer.synchronize()
         }
+        .task(id: shouldRequestMetaTracking) {
+            guard shouldRequestMetaTracking else { return }
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            await MetaAttributionService.shared.requestAuthorizationIfNeeded()
+        }
         .onChange(of: session.userID) { _, userID in
             recentLookupStore.activateAccount(userID)
             Task {
@@ -209,6 +215,13 @@ struct AppRootView: View {
             }
         }
         .preferredColorScheme(.light)
+    }
+
+    private var shouldRequestMetaTracking: Bool {
+        session.isAuthenticated &&
+            !session.isResolvingAuthentication &&
+            !requiresCurrentLegalAcceptance &&
+            postAuthenticationFlow == nil
     }
 
     private var uiTestScreen: String? {

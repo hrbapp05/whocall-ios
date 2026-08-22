@@ -154,6 +154,7 @@ final class PurchaseStore {
 #endif
         Purchases.configure(withAPIKey: publicSDKKey)
         isConfigured = true
+        MetaAttributionService.shared.revenueCatDidConfigure()
 
         await synchronizeRevenueCatAccount()
 
