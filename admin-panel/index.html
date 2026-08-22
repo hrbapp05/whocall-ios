@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <meta name="theme-color" content="#075cff" />
+    <title>WhoCall Yönetim</title>
+  </head>
+  <body>
+    <div id="app" aria-live="polite">
+      <div class="boot"><span class="brand-mark">W</span><p>Güvenli yönetim alanı hazırlanıyor…</p></div>
+    </div>
+    <div id="recaptcha-container"></div>
+    <div id="toast-region" class="toast-region" aria-live="assertive"></div>
+    <dialog id="confirm-dialog" class="confirm-dialog">
+      <form method="dialog">
+        <span class="dialog-icon">!</span>
+        <h2 id="confirm-title">İşlemi onayla</h2>
+        <p id="confirm-message"></p>
+        <div class="dialog-actions">
+          <button class="button button-secondary" value="cancel">Vazgeç</button>
+          <button class="button button-danger" value="confirm">Onayla</button>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
