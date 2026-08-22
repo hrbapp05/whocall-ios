@@ -13,6 +13,7 @@ const {
 
 const PHONE_ID_PATTERN = /^v1_[a-f0-9]{64}$/;
 const DOCUMENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+const USER_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const ADMIN_ACTIONS = new Set([
   "upsert-phone",
   "exclude-phone",
@@ -28,6 +29,7 @@ const ADMIN_ACTIONS = new Set([
   "update-comment",
   "delete-comment",
   "resolve-number-report",
+  "set-user-disabled",
 ]);
 
 function cleanText(value, minLength, maxLength) {
@@ -52,6 +54,19 @@ function serializeDocument(document) {
     reviewBy: serializeTimestamp(data.reviewBy),
     resolvedAt: serializeTimestamp(data.resolvedAt),
   };
+}
+
+function newestFirst(left, right) {
+  const leftTime = Date.parse(left.updatedAt || left.createdAt || "") || 0;
+  const rightTime = Date.parse(right.updatedAt || right.createdAt || "") || 0;
+  return rightTime - leftTime;
+}
+
+function isMissingIndexError(error) {
+  const code = error && error.code;
+  const message = String(error && error.message || "");
+  return [9, "failed-precondition", "firestore/failed-precondition"].includes(code) &&
+    /query requires(?: a)?(?: collection_desc)? index/i.test(message);
 }
 
 function publicProfile(profile) {
@@ -136,7 +151,7 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
       context.benefits.get(),
       context.community.get(),
       context.community.collection("comments").orderBy("createdAt", "desc").limit(100).get(),
-      context.community.collection("reports").orderBy("updatedAt", "desc").limit(100).get(),
+      context.community.collection("reports").limit(100).get(),
     ]);
     let authUser = null;
     try {
@@ -175,7 +190,7 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
           createdAt: comment.createdAt,
           updatedAt: comment.updatedAt,
         })),
-        reports: numberReports.docs.map(serializeDocument).map((report) => ({
+        reports: numberReports.docs.map(serializeDocument).sort(newestFirst).map((report) => ({
           id: report.id,
           reason: report.reason || "Diğer",
           status: report.status || "pending",
@@ -189,11 +204,16 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
 
   async function reports(limit) {
     const safeLimit = Math.min(100, Math.max(10, Number(limit) || 50));
-    const [content, numberReports] = await Promise.all([
-      db.collection("communityModerationReports")
-          .orderBy("lastReportedAt", "desc").limit(safeLimit).get(),
-      db.collectionGroup("reports").orderBy("updatedAt", "desc").limit(safeLimit).get(),
-    ]);
+    const content = await db.collection("communityModerationReports")
+        .orderBy("lastReportedAt", "desc").limit(safeLimit).get();
+    let numberReports;
+    try {
+      numberReports = await db.collectionGroup("reports")
+          .orderBy("updatedAt", "desc").limit(safeLimit).get();
+    } catch (error) {
+      if (!isMissingIndexError(error)) throw error;
+      numberReports = await db.collectionGroup("reports").limit(safeLimit).get();
+    }
     return {
       content: content.docs.map(serializeDocument).map((report) => ({
         id: report.id,
@@ -219,7 +239,45 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
           createdAt: report.createdAt,
           updatedAt: report.updatedAt,
         };
+      }).sort(newestFirst),
+    };
+  }
+
+  async function users(limit, pageToken) {
+    const safeLimit = Math.min(100, Math.max(10, Number(limit) || 50));
+    const safePageToken = cleanText(pageToken, 1, 2000) || undefined;
+    const result = await auth.listUsers(safeLimit, safePageToken);
+    const phoneUsers = result.users.map((user) => ({
+      user,
+      phone: normalizePhone(user.phoneNumber),
+    })).filter((entry) => entry.phone);
+    const contexts = phoneUsers.map((entry) => contextForPhone(entry.phone));
+    const [profiles, benefits] = contexts.length ? await Promise.all([
+      db.getAll(...contexts.map((context) => context.profile)),
+      db.getAll(...contexts.map((context) => context.benefits)),
+    ]) : [[], []];
+    return {
+      items: phoneUsers.map(({user, phone}, index) => {
+        const profile = profiles[index].data() || {};
+        const benefit = benefits[index].data() || {};
+        return {
+          uid: user.uid,
+          phone: `+${phone}`,
+          phoneMasked: maskedPhone(phone),
+          displayName: profile.displayName || user.displayName || "İsimsiz kullanıcı",
+          firstName: profile.firstName || "",
+          lastName: profile.lastName || "",
+          isVisible: profile.isVisible !== false,
+          disabled: user.disabled === true,
+          profilePublished: profiles[index].exists,
+          promotionalPremiumActive: isPremiumActive(benefit),
+          promotionalPremiumExpiresAt: serializeTimestamp(benefit.promotionalPremiumExpiresAt),
+          promotionalCreditBalance: Math.max(0, Number(benefit.promotionalCreditBalance || 0)),
+          createdAt: user.metadata && user.metadata.creationTime || null,
+          lastSignInAt: user.metadata && user.metadata.lastSignInTime || null,
+        };
       }),
+      nextPageToken: result.pageToken || null,
     };
   }
 
@@ -235,6 +293,7 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
     const action = request.data && request.data.action;
     if (action === "overview") return overview();
     if (action === "phone") return phoneDetails(request.data.phone);
+    if (action === "users") return users(request.data.limit, request.data.pageToken);
     if (action === "reports") return reports(request.data.limit);
     if (action === "audits") return audits(request.data.limit);
     throw new HttpsError("invalid-argument", "Geçerli bir yönetim sorgusu seçin.");
@@ -489,6 +548,21 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
     return {resolved: true};
   }
 
+  async function setUserDisabled(uid, data) {
+    const targetUID = data.uid;
+    if (typeof targetUID !== "string" || !USER_ID_PATTERN.test(targetUID) ||
+        typeof data.disabled !== "boolean") {
+      throw new HttpsError("invalid-argument", "Geçerli kullanıcı ve hesap durumu seçin.");
+    }
+    if (targetUID === uid && data.disabled) {
+      throw new HttpsError("failed-precondition", "Kendi yönetici hesabınızı devre dışı bırakamazsınız.");
+    }
+    const user = await auth.updateUser(targetUID, {disabled: data.disabled});
+    const targetID = keyedDigest(`user:${targetUID}`, hmacKey.value());
+    await audit(uid, "set-user-disabled", targetID, {disabled: data.disabled});
+    return {uid: user.uid, disabled: user.disabled === true};
+  }
+
   async function mutate(request) {
     const uid = requireAdmin(request);
     const data = request.data || {};
@@ -503,6 +577,7 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
     if (action === "set-premium") return setPremium(uid, data);
     if (action === "adjust-credits") return adjustCredits(uid, data);
     if (action === "set-trust") return setTrust(uid, data);
+    if (action === "set-user-disabled") return setUserDisabled(uid, data);
     if (["add-tag", "update-tag", "delete-tag"].includes(action)) {
       return mutateTag(uid, action, data);
     }
@@ -515,4 +590,4 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
   return {query, mutate};
 }
 
-module.exports = {createAdminService, isPremiumActive};
+module.exports = {createAdminService, isMissingIndexError, isPremiumActive, newestFirst};

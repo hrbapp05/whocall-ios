@@ -13,6 +13,8 @@ WhoCall Admin, Railway üzerinde statik web arayüzü olarak çalışır. Taray�
 ## Yönetilebilen alanlar
 
 - Uygulama dizinine numara/profil ekleme ve güncelleme
+- Telefonla doğrulanmış kullanıcıları listeleme, adına veya numarasına göre bulma
+- Kullanıcı hesabını geçici olarak devre dışı bırakma ve yeniden etkinleştirme
 - Numarayı aramaya açık/kapalı yapma veya dizinden tamamen çıkarma
 - Telefon numarasına promosyon Premium tanımlama/iptal etme
 - Promosyon kredisi ekleme/eksiltme

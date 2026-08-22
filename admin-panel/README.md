@@ -8,6 +8,8 @@ Railway üzerinde çalışan yönetim arayüzüdür. Tarayıcı yalnızca Fireba
 - İçerik moderasyonu için aynı claim kabul edilir; mevcut `communityModerator` yetkisi korunur.
 - Telefon numarası denetim kayıtlarına yazılmaz. Kayıt kimliği anahtarlı HMAC ile oluşturulur.
 - Panel promosyon premium ve promosyon kredisi yönetir. App Store aboneliğini iptal etmez ve satın alınmış tüketilebilir krediyi değiştirmez.
+- `Kullanıcılar` ekranı yalnızca telefon doğrulaması tamamlanmış Firebase Authentication hesaplarını listeler. Tam numara yalnızca yetkili admin oturumuna döner.
+- Kullanıcı hesabı bu ekrandan geçici olarak devre dışı bırakılabilir veya yeniden etkinleştirilebilir; diğer profil ve hak işlemleri `Yönet` düğmesiyle numara ekranında açılır.
 
 ## Railway değişkenleri
 

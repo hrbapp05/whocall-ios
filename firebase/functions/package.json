@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check index.js && node --check directory.js"
+    "check": "node --check index.js && node --check directory.js && node --check admin.js"
   },
   "dependencies": {
     "@google-cloud/functions-framework": "^5.0.5",

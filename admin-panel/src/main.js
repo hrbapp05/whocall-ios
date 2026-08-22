@@ -1,4 +1,5 @@
 import "./styles.css";
+import "./users.css";
 import {initializeApp} from "firebase/app";
 import {
   RecaptchaVerifier,
@@ -28,6 +29,8 @@ const state = {
   overview: null,
   phoneInput: "",
   phone: null,
+  users: null,
+  userSearch: "",
   reports: null,
   audits: null,
   confirmation: null,
@@ -180,6 +183,7 @@ function shell(content) {
         <nav>
           ${navItem("overview", "Genel Bakış", "⌂")}
           ${navItem("number", "Numara Yönetimi", "⌕")}
+          ${navItem("users", "Kullanıcılar", "♙")}
           ${navItem("reports", "Raporlar", "!")}
           ${navItem("audits", "İşlem Geçmişi", "↺")}
         </nav>
@@ -202,7 +206,7 @@ function shell(content) {
 }
 
 function routeTitle() {
-  return ({overview: "Genel Bakış", number: "Numara Yönetimi", reports: "Raporlar", audits: "İşlem Geçmişi"})[state.route];
+  return ({overview: "Genel Bakış", number: "Numara Yönetimi", users: "Kullanıcılar", reports: "Raporlar", audits: "İşlem Geçmişi"})[state.route];
 }
 
 function bindShell() {
@@ -294,7 +298,12 @@ async function loadPhone(value) {
     shell(`${numberSearchContent()}${phoneContent(state.phone)}`);
     bindNumberSearch();
     bindPhoneActions();
-  } catch (error) { showToast(messageFor(error), "error"); }
+  } catch (error) {
+    state.phone = null;
+    shell(`${numberSearchContent()}${emptyNumberState()}`);
+    bindNumberSearch();
+    showToast(messageFor(error), "error");
+  }
 }
 
 function statusBadge(label, active, kind = "default") {
@@ -367,6 +376,91 @@ function bindPhoneActions() {
   document.querySelectorAll("[data-number-report]").forEach((button) => button.addEventListener("click", () => runMutation({action: "resolve-number-report", communityID: button.dataset.community, reportID: button.dataset.numberReport, decision: button.dataset.decision}, "Numara raporu sonuçlandırıldı.")));
 }
 
+async function renderUsers() {
+  shell(state.users ? usersContent() : loadingCards());
+  if (state.users) bindUserActions();
+  else await loadUsers(false);
+}
+
+async function loadUsers(append) {
+  try {
+    const result = (await query({
+      action: "users",
+      limit: 100,
+      pageToken: append ? state.users?.nextPageToken : null,
+    })).data;
+    state.users = {
+      items: append ? [...(state.users?.items || []), ...(result.items || [])] : (result.items || []),
+      nextPageToken: result.nextPageToken || null,
+    };
+    shell(usersContent());
+    bindUserActions();
+  } catch (error) {
+    shell(usersContent(true));
+    bindUserActions();
+    showToast(messageFor(error), "error");
+  }
+}
+
+function usersContent(loadFailed = false) {
+  const items = state.users?.items || [];
+  const term = state.userSearch.trim().toLocaleLowerCase("tr-TR");
+  const digits = state.userSearch.replace(/\D/g, "");
+  const filtered = items.filter((user) => !term ||
+    user.displayName.toLocaleLowerCase("tr-TR").includes(term) ||
+    (digits && user.phone.replace(/\D/g, "").includes(digits)));
+  const body = filtered.length ? filtered.map(userRow).join("") : `<tr><td colspan="8"><div class="table-empty"><strong>${loadFailed ? "Kullanıcılar yüklenemedi" : term ? "Eşleşen kullanıcı bulunamadı" : "Henüz doğrulanmış kullanıcı yok"}</strong><span>${loadFailed ? "Yenile düğmesiyle tekrar deneyin." : "Telefon doğrulaması tamamlanan hesaplar burada görünür."}</span></div></td></tr>`;
+  return `<section class="page-intro"><div><p class="eyebrow">DOĞRULANMIŞ HESAPLAR</p><h2>Kullanıcılar</h2><p class="muted">Telefon doğrulamasıyla giriş yapan kullanıcıları görüntüleyin ve hesaplarını yönetin.</p></div><button id="refresh-users" class="button button-secondary">Yenile</button></section>
+    <section class="panel users-panel"><form id="user-search" class="users-toolbar"><input name="search" value="${escapeHTML(state.userSearch)}" placeholder="Ad veya telefon numarası ara" aria-label="Kullanıcı ara" /><button class="button button-primary">Ara</button>${state.userSearch ? `<button id="clear-user-search" class="button button-link" type="button">Temizle</button>` : ""}<span>${filtered.length} kullanıcı gösteriliyor</span></form>
+      <div class="table-wrap"><table class="users-table"><thead><tr><th>Kullanıcı</th><th>Telefon</th><th>Profil</th><th>Premium</th><th>Kredi</th><th>Son giriş</th><th>Hesap</th><th>İşlem</th></tr></thead><tbody>${body}</tbody></table></div>
+      ${state.users?.nextPageToken ? `<div class="load-more"><button id="load-more-users" class="button button-secondary">Daha fazla kullanıcı yükle</button></div>` : ""}
+    </section>`;
+}
+
+function userRow(user) {
+  const premium = user.promotionalPremiumActive ?
+    (user.promotionalPremiumExpiresAt ? dateTime(user.promotionalPremiumExpiresAt) : "Süresiz") : "Yok";
+  return `<tr><td><span class="user-primary"><span class="avatar">${escapeHTML((user.displayName || "W").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHTML(user.displayName)}</strong><small>${dateTime(user.createdAt)} tarihinde katıldı</small></span></span></td><td><strong>${escapeHTML(user.phone)}</strong><small class="user-meta">${escapeHTML(user.phoneMasked)}</small></td><td>${statusBadge(user.profilePublished ? user.isVisible ? "Görünür" : "Gizli" : "Yayınlanmadı", user.profilePublished && user.isVisible, "muted")}</td><td>${escapeHTML(premium)}</td><td>${Number(user.promotionalCreditBalance || 0)}</td><td>${dateTime(user.lastSignInAt)}</td><td>${statusBadge(user.disabled ? "Devre dışı" : "Aktif", !user.disabled, user.disabled ? "danger" : "muted")}</td><td><div class="user-actions"><button class="table-action" data-manage-user="${escapeHTML(user.phone)}">Yönet</button><button class="table-action ${user.disabled ? "" : "danger-text"}" data-user-status="${escapeHTML(user.uid)}" data-disabled="${user.disabled ? "false" : "true"}" data-user-name="${escapeHTML(user.displayName)}">${user.disabled ? "Etkinleştir" : "Devre dışı bırak"}</button></div></td></tr>`;
+}
+
+function bindUserActions() {
+  document.querySelector("#refresh-users")?.addEventListener("click", () => {
+    state.users = null;
+    state.userSearch = "";
+    renderUsers();
+  });
+  document.querySelector("#user-search")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.userSearch = new FormData(event.currentTarget).get("search") || "";
+    shell(usersContent());
+    bindUserActions();
+  });
+  document.querySelector("#clear-user-search")?.addEventListener("click", () => {
+    state.userSearch = "";
+    shell(usersContent());
+    bindUserActions();
+  });
+  document.querySelector("#load-more-users")?.addEventListener("click", () => loadUsers(true));
+  document.querySelectorAll("[data-manage-user]").forEach((button) => button.addEventListener("click", () => {
+    state.phoneInput = button.dataset.manageUser;
+    state.phone = null;
+    state.route = "number";
+    window.location.hash = "number";
+    renderNumber(true);
+  }));
+  document.querySelectorAll("[data-user-status]").forEach((button) => button.addEventListener("click", async () => {
+    const disabled = button.dataset.disabled === "true";
+    const verb = disabled ? "devre dışı bırakmak" : "yeniden etkinleştirmek";
+    if (!await confirmAction("Kullanıcı hesabını güncelle", `${button.dataset.userName} hesabını ${verb} istediğinize emin misiniz?`)) return;
+    try {
+      await mutate({action: "set-user-disabled", uid: button.dataset.userStatus, disabled});
+      showToast(disabled ? "Kullanıcı hesabı devre dışı bırakıldı." : "Kullanıcı hesabı yeniden etkinleştirildi.");
+      state.users = null;
+      await renderUsers();
+    } catch (error) { showToast(messageFor(error), "error"); }
+  }));
+}
+
 async function renderReports() {
   shell(state.reports ? reportsContent() : loadingCards());
   if (!state.reports) {
@@ -416,6 +510,7 @@ function auditsContent() {
 function renderRoute() {
   if (!state.user) return loginView();
   if (state.route === "number") return renderNumber();
+  if (state.route === "users") return renderUsers();
   if (state.route === "reports") return renderReports();
   if (state.route === "audits") return renderAudits();
   return renderOverview();
@@ -426,7 +521,7 @@ async function bootstrap() {
     root.innerHTML = `<main class="fatal"><span class="brand-mark">W</span><h1>Yapılandırma eksik</h1><p>Panelin Firebase web ayarları Railway ortamına eklenmemiş.</p></main>`;
     return;
   }
-  state.route = ["overview", "number", "reports", "audits"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview";
+  state.route = ["overview", "number", "users", "reports", "audits"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview";
   onAuthStateChanged(auth, async (user) => {
     if (!user) { state.user = null; loginView(); return; }
     try {
