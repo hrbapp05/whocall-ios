@@ -7,6 +7,10 @@ const {
   containsBlockedCommunityLanguage,
   keyedDigest,
   namesFromDisplayName,
+  maskedPhone,
+  normalizeAdminPremiumDuration,
+  normalizeAdminTrustLevel,
+  normalizeCreditAdjustment,
   normalizeCommunityContentType,
   normalizeCommunityModerationReason,
   normalizeLegalAcceptance,
@@ -19,6 +23,19 @@ test("normalizes supported Turkish mobile formats", () => {
   assert.equal(normalizePhone("+90 500 000 00 00"), "905000000000");
   assert.equal(normalizePhone("05000000000"), "905000000000");
   assert.equal(normalizePhone("5000000000"), "905000000000");
+});
+
+test("validates admin account adjustments without accepting arbitrary values", () => {
+  assert.equal(normalizeAdminTrustLevel("high"), "high");
+  assert.equal(normalizeAdminTrustLevel("automatic"), null);
+  assert.equal(normalizeAdminTrustLevel("unknown"), undefined);
+  assert.equal(normalizeAdminPremiumDuration("30-days"), "30-days");
+  assert.equal(normalizeAdminPremiumDuration("forever"), null);
+  assert.equal(normalizeCreditAdjustment(5), 5);
+  assert.equal(normalizeCreditAdjustment(-3), -3);
+  assert.equal(normalizeCreditAdjustment(0), null);
+  assert.equal(normalizeCreditAdjustment(10_001), null);
+  assert.equal(maskedPhone("0506 158 55 98"), "+90 5** *** ** 98");
 });
 
 test("rejects invalid and non-mobile numbers", () => {

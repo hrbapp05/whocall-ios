@@ -6,6 +6,7 @@ const {getAuth} = require("firebase-admin/auth");
 const logger = require("firebase-functions/logger");
 const {defineSecret} = require("firebase-functions/params");
 const {HttpsError, onCall} = require("firebase-functions/v2/https");
+const {createAdminService, isPremiumActive} = require("./admin");
 const {
   communityAuthor,
   containsBlockedCommunityLanguage,
@@ -32,6 +33,7 @@ const callableOptions = {
   secrets: [hmacKey],
 };
 const accountDeletionOptions = {...callableOptions, timeoutSeconds: 60};
+const adminOptions = {...callableOptions, timeoutSeconds: 60, memory: "512MiB"};
 
 async function authenticatedPhone(request) {
   if (!request.auth) {
@@ -119,7 +121,14 @@ exports.lookupVerifiedProfile = onCall(callableOptions, async (request) => {
   const secret = hmacKey.value();
   await enforceRateLimit(request.auth.uid, "lookup", 20, secret);
   const phoneHmac = keyedDigest(number, secret);
-  const snapshot = await db.collection("verifiedNumberProfiles").doc(`v1_${phoneHmac}`).get();
+  const documentID = `v1_${phoneHmac}`;
+  const [snapshot, exclusion] = await Promise.all([
+    db.collection("verifiedNumberProfiles").doc(documentID).get(),
+    db.collection("adminExcludedNumbers").doc(documentID).get(),
+  ]);
+  if (exclusion.exists && exclusion.data().active === true) {
+    return {found: false, hidden: false, suppressed: true};
+  }
   const profile = snapshot.data();
   if (!snapshot.exists) {
     try {
@@ -144,6 +153,86 @@ exports.lookupVerifiedProfile = onCall(callableOptions, async (request) => {
       lastName: profile.lastName,
     },
   };
+});
+
+exports.getAccountAccessState = onCall(callableOptions, async (request) => {
+  const phone = await authenticatedPhone(request);
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "account-access-read", 30, secret);
+  const reference = db.collection("accountBenefits")
+      .doc(`v1_${keyedDigest(phone, secret)}`);
+  const snapshot = await reference.get();
+  const data = snapshot.data() || {};
+  return {
+    promotionalPremiumActive: isPremiumActive(data),
+    promotionalPremiumExpiresAt: data.promotionalPremiumExpiresAt &&
+      typeof data.promotionalPremiumExpiresAt.toDate === "function" ?
+      data.promotionalPremiumExpiresAt.toDate().toISOString() : null,
+    promotionalCreditBalance: Math.max(0, Number(data.promotionalCreditBalance || 0)),
+  };
+});
+
+exports.consumePromotionalCredit = onCall(callableOptions, async (request) => {
+  const phone = await authenticatedPhone(request);
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "account-credit-consume", 20, secret);
+  const reference = db.collection("accountBenefits")
+      .doc(`v1_${keyedDigest(phone, secret)}`);
+  const result = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    const data = snapshot.data() || {};
+    if (isPremiumActive(data)) {
+      return {
+        authorized: true,
+        promotionalPremiumActive: true,
+        promotionalCreditBalance: Math.max(0, Number(data.promotionalCreditBalance || 0)),
+      };
+    }
+    const balance = Math.max(0, Number(data.promotionalCreditBalance || 0));
+    if (balance < 1) {
+      return {authorized: false, promotionalPremiumActive: false, promotionalCreditBalance: 0};
+    }
+    transaction.set(reference, {
+      promotionalCreditBalance: balance - 1,
+      lastCreditConsumedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    return {
+      authorized: true,
+      promotionalPremiumActive: false,
+      promotionalCreditBalance: balance - 1,
+    };
+  });
+  return result;
+});
+
+exports.claimInitialAdmin = onCall(callableOptions, async (request) => {
+  if (!request.auth || request.auth.token.communityModerator !== true) {
+    throw new HttpsError("permission-denied", "Mevcut moderatör yetkisi gerekli.");
+  }
+  const secret = hmacKey.value();
+  const ownerUIDHash = keyedDigest(`initial-admin:${request.auth.uid}`, secret);
+  const reference = db.collection("adminBootstrapSettings").doc("initial-admin");
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    if (snapshot.exists && snapshot.data().ownerUIDHash !== ownerUIDHash) {
+      throw new HttpsError("permission-denied", "İlk yönetici daha önce tanımlanmış.");
+    }
+    if (!snapshot.exists) {
+      transaction.create(reference, {
+        ownerUIDHash,
+        claimedAt: FieldValue.serverTimestamp(),
+      });
+    }
+  });
+  const user = await getAuth().getUser(request.auth.uid);
+  await getAuth().setCustomUserClaims(request.auth.uid, {
+    ...user.customClaims,
+    communityModerator: true,
+    whoCallAdmin: true,
+  });
+  logger.info("initial_whocall_admin_claimed", {ownerUIDHash});
+  return {claimed: true};
 });
 
 exports.unpublishVerifiedProfile = onCall(callableOptions, async (request) => {
@@ -297,7 +386,8 @@ exports.deleteWhoCallAccount = onCall(accountDeletionOptions, async (request) =>
     "publish", "lookup", "unpublish", "visibility", "community-read",
     "community-comment", "community-tag", "community-report",
     "community-content-report", "community-user-block",
-    "legal-acceptance", "account-delete",
+    "legal-acceptance", "account-delete", "account-access-read",
+    "account-credit-consume",
   ];
   for (const operation of rateLimitOperations) {
     const id = keyedDigest(`${uid}:${operation}`, secret);
@@ -393,6 +483,7 @@ exports.getNumberCommunity = onCall(callableOptions, async (request) => {
       !hiddenContentKeys.has(tagContentKey(reference.id, tag, secret)),
     ),
     reportCount: Math.max(0, Number(community.data() && community.data().reportCount || 0)),
+    trustLevel: community.data() && community.data().trustOverride || null,
     comments: comments.docs
         .map((document) => {
           const data = document.data();
@@ -463,7 +554,11 @@ exports.addNumberTag = onCall(callableOptions, async (request) => {
       if (tags.length >= 30) throw new HttpsError("resource-exhausted", "Etiket sınırına ulaşıldı.");
       tags.push(tag);
     }
-    transaction.set(reference, {tags, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    transaction.set(reference, {
+      phoneMasked: `+90 5** *** ** ${number.slice(-2)}`,
+      tags,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
   });
   return {added: true};
 });
@@ -492,11 +587,13 @@ exports.reportNumber = onCall(callableOptions, async (request) => {
     transaction.set(reportReference, {
       uidHash: reportID,
       reason,
+      status: "pending",
       createdAt: report.exists ? report.data().createdAt : FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
     if (!report.exists) {
       transaction.set(reference, {
+        phoneMasked: `+90 5** *** ** ${number.slice(-2)}`,
         reportCount: FieldValue.increment(1),
         updatedAt: FieldValue.serverTimestamp(),
       }, {merge: true});
@@ -671,7 +768,8 @@ exports.blockCommunityAuthor = onCall(callableOptions, async (request) => {
 exports.moderateCommunityReport = onCall(
     {...callableOptions, timeoutSeconds: 30},
     async (request) => {
-      if (!request.auth || request.auth.token.communityModerator !== true) {
+      if (!request.auth || (request.auth.token.communityModerator !== true &&
+          request.auth.token.whoCallAdmin !== true)) {
         throw new HttpsError("permission-denied", "Moderasyon yetkisi gerekli.");
       }
       const reportID = request.data && request.data.reportID;
@@ -723,3 +821,15 @@ exports.moderateCommunityReport = onCall(
       return {resolved: true};
     },
 );
+
+const adminService = createAdminService({
+  db,
+  auth: getAuth(),
+  FieldValue,
+  Timestamp,
+  HttpsError,
+  hmacKey,
+});
+
+exports.adminQuery = onCall(adminOptions, (request) => adminService.query(request));
+exports.adminMutate = onCall(adminOptions, (request) => adminService.mutate(request));

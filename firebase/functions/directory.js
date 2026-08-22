@@ -20,6 +20,9 @@ const BLOCKED_COMMUNITY_TERMS = [
   "kahpe", "pezevenk", "göt", "got", "bok", "mal",
 ];
 
+const ADMIN_TRUST_LEVELS = ["high", "medium", "risky"];
+const ADMIN_PREMIUM_DURATIONS = ["7-days", "30-days", "lifetime", "revoke"];
+
 function normalizePhone(value) {
   if (typeof value !== "string") return null;
   let digits = value.replace(/\D/g, "");
@@ -103,6 +106,25 @@ function normalizeCommunityContentType(value) {
   return value === "comment" || value === "tag" ? value : null;
 }
 
+function normalizeAdminTrustLevel(value) {
+  if (value === null || value === "automatic") return null;
+  return ADMIN_TRUST_LEVELS.includes(value) ? value : undefined;
+}
+
+function normalizeAdminPremiumDuration(value) {
+  return ADMIN_PREMIUM_DURATIONS.includes(value) ? value : null;
+}
+
+function normalizeCreditAdjustment(value) {
+  if (!Number.isSafeInteger(value) || value === 0 || Math.abs(value) > 10_000) return null;
+  return value;
+}
+
+function maskedPhone(value) {
+  const phone = normalizePhone(value);
+  return phone ? `+90 5** *** ** ${phone.slice(-2)}` : null;
+}
+
 function normalizeLegalAcceptance(value) {
   if (!value || typeof value !== "object") return null;
   if (value.termsVersion !== CURRENT_TERMS_VERSION ||
@@ -121,6 +143,8 @@ function normalizeLegalAcceptance(value) {
 }
 
 module.exports = {
+  ADMIN_PREMIUM_DURATIONS,
+  ADMIN_TRUST_LEVELS,
   COMMUNITY_MODERATION_REASONS,
   CURRENT_PRIVACY_NOTICE_VERSION,
   CURRENT_TERMS_VERSION,
@@ -132,7 +156,11 @@ module.exports = {
   normalizeForModeration,
   normalizeCommunityContentType,
   normalizeCommunityModerationReason,
+  normalizeAdminPremiumDuration,
+  normalizeAdminTrustLevel,
+  normalizeCreditAdjustment,
   normalizeName,
   normalizePhone,
   normalizeLegalAcceptance,
+  maskedPhone,
 };
