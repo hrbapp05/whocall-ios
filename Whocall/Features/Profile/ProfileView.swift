@@ -69,6 +69,14 @@ struct ProfileView: View {
                     }
                 }
 
+                Section("Bildirimler") {
+                    NavigationLink {
+                        NotificationSettingsView()
+                    } label: {
+                        Label("Bildirim Ayarları", systemImage: "bell.badge")
+                    }
+                }
+
                 Section("Destek") {
                     Link(destination: URL(string: "mailto:support@levelappstudio.com")!) {
                         Label("Bize Ulaşın", systemImage: "envelope")
@@ -259,6 +267,7 @@ struct ProfileView: View {
             recentLookupStore.clear()
             await purchaseStore.clearLocalAccountData(accountID: userID)
             ProfileVisibilityPreference.clear(userID: userID)
+            NotificationPreference.clear(userID: userID)
             PendingVerifiedProfileStore.clear()
             LegalAcceptancePreference.clear(userID: userID)
             onSignOut()

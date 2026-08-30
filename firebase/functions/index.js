@@ -259,6 +259,24 @@ exports.registerPushToken = onCall(callableOptions, async (request) => {
   return {registered: true};
 });
 
+exports.unregisterPushToken = onCall(callableOptions, async (request) => {
+  await authenticatedPhone(request);
+  const token = request.data && request.data.token;
+  if (typeof token !== "string" || token.length < 20 || token.length > 4096) {
+    throw new HttpsError("invalid-argument", "Geçerli bildirim cihaz anahtarı zorunludur.");
+  }
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "push-token-unregister", 10, secret);
+  const reference = db.collection("pushDeviceTokens")
+      .doc(`v1_${keyedDigest(token, secret)}`);
+  const snapshot = await reference.get();
+  if (snapshot.exists && snapshot.data().uid === request.auth.uid) {
+    await reference.delete();
+    return {unregistered: true};
+  }
+  return {unregistered: false};
+});
+
 exports.consumePromotionalCredit = onCall(callableOptions, async (request) => {
   const phone = await authenticatedPhone(request);
   const secret = hmacKey.value();

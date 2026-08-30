@@ -29,7 +29,6 @@ final class AppDelegate: NSObject,
             Auth.auth().languageCode = "tr"
             Messaging.messaging().delegate = self
             UNUserNotificationCenter.current().delegate = self
-            application.registerForRemoteNotifications()
         }
 #endif
         return true
