@@ -1,18 +1,37 @@
 import SwiftUI
 
+enum PurchasePaywallSection: String, CaseIterable, Identifiable {
+    case subscriptions
+    case credits
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .subscriptions: "Abonelikler"
+        case .credits: "Krediler"
+        }
+    }
+}
+
 struct PremiumView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(PurchaseStore.self) private var purchaseStore
     @State private var selectedPlan = 1
+    @State private var selectedCredit = 5
+    @State private var selectedSection: PurchasePaywallSection
     @State private var showsCloseButton = false
+    @State private var hasTrackedPresentation = false
 
     private let closeDelayMilliseconds: Int
     private let onClose: (() -> Void)?
 
     init(
+        initialSection: PurchasePaywallSection = .subscriptions,
         closeDelayMilliseconds: Int = 0,
         onClose: (() -> Void)? = nil
     ) {
+        _selectedSection = State(initialValue: initialSection)
         self.closeDelayMilliseconds = closeDelayMilliseconds
         self.onClose = onClose
     }
@@ -20,50 +39,20 @@ struct PremiumView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                premiumHero
-                    .padding(.top, -28)
-                    .figmaEntrance(delay: 0.04, distance: 14)
-
-                Text("Premium ol")
-                    .font(.body)
-                    .padding(.top, 8)
-                HStack(spacing: 4) {
-                    Text("Daha Fazlasını")
-                    Text("Keşfet!").foregroundStyle(DesignTokens.ColorToken.brandBlue)
-                }
-                .font(.title2.weight(.bold))
-                .padding(.top, 4)
-                Text("WhoCall Premium ile tüm bilgilerin kilidini açın.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 4)
-
-                benefits
-                    .padding(.top, 22)
-
-                VStack(spacing: 16) {
-                    plan(
-                        0,
-                        "Haftalık Premium",
-                        subtitle: "Haftalık Tam Erişim",
-                        price: purchaseStore.localizedPrice(for: .premiumWeekly, fallback: "499,99"),
-                        suffix: "/hafta"
-                    )
-                    plan(
-                        1,
-                        "Aylık Premium",
-                        subtitle: "Aylık Tam Erişim",
-                        price: purchaseStore.localizedPrice(for: .premiumMonthly, fallback: "999,99"),
-                        suffix: "/ay"
-                    )
-                }
-                .padding(.horizontal, 32)
-                .padding(.top, 24)
-
-                purchaseActions
+                sectionPicker
                     .padding(.horizontal, 20)
-                    .padding(.top, 28)
-                    .padding(.bottom, 34)
+                    .padding(.top, 8)
+
+                Group {
+                    switch selectedSection {
+                    case .subscriptions:
+                        subscriptionContent
+                    case .credits:
+                        creditContent
+                    }
+                }
+                .id(selectedSection)
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
         }
         .background(Color(red: 0.97, green: 0.98, blue: 1).ignoresSafeArea())
@@ -95,6 +84,10 @@ struct PremiumView: View {
         }
         .interactiveDismissDisabled(!showsCloseButton)
         .task {
+            if !hasTrackedPresentation {
+                hasTrackedPresentation = true
+                MetaAttributionService.shared.trackPaywallPresented(section: selectedSection.rawValue)
+            }
             guard !showsCloseButton else { return }
             if closeDelayMilliseconds > 0 {
                 try? await Task.sleep(for: .milliseconds(closeDelayMilliseconds))
@@ -103,9 +96,13 @@ struct PremiumView: View {
                 showsCloseButton = true
             }
         }
+        .onChange(of: selectedSection) { _, section in
+            MetaAttributionService.shared.trackPaywallPresented(section: section.rawValue)
+        }
     }
 
     private func close() {
+        MetaAttributionService.shared.trackPaywallDismissed(section: selectedSection.rawValue)
         if let onClose {
             onClose()
         } else {
@@ -114,18 +111,126 @@ struct PremiumView: View {
     }
 
     private var selectedProductID: RevenueCatProductID {
-        selectedPlan == 0 ? .premiumWeekly : .premiumMonthly
+        if selectedSection == .credits { return selectedCreditProductID }
+        return selectedPlan == 0 ? .premiumWeekly : .premiumMonthly
+    }
+
+    private var selectedCreditProductID: RevenueCatProductID {
+        switch selectedCredit {
+        case 3: .credits3
+        case 10: .credits10
+        default: .credits5
+        }
+    }
+
+    private var sectionPicker: some View {
+        Picker("Satın alma türü", selection: $selectedSection) {
+            ForEach(PurchasePaywallSection.allCases) { section in
+                Text(section.title).tag(section)
+            }
+        }
+        .pickerStyle(.segmented)
+        .animation(.easeInOut(duration: 0.24), value: selectedSection)
+        .accessibilityHint("Abonelik ve kredi seçenekleri arasında geçiş yapar")
+    }
+
+    private var subscriptionContent: some View {
+        VStack(spacing: 0) {
+            premiumHero
+                .padding(.top, -8)
+                .figmaEntrance(delay: 0.04, distance: 14)
+
+            Text("Premium ol")
+                .font(.body)
+                .padding(.top, 8)
+            HStack(spacing: 4) {
+                Text("Daha Fazlasını")
+                Text("Keşfet!").foregroundStyle(DesignTokens.ColorToken.brandBlue)
+            }
+            .font(.title2.weight(.bold))
+            .padding(.top, 4)
+            Text("WhoCall Premium ile tüm bilgilerin kilidini açın.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+
+            benefits.padding(.top, 22)
+
+            VStack(spacing: 16) {
+                plan(
+                    0,
+                    "Haftalık Premium",
+                    subtitle: "Haftalık Tam Erişim",
+                    price: purchaseStore.localizedPrice(for: .premiumWeekly, fallback: "499,99"),
+                    suffix: "/hafta"
+                )
+                plan(
+                    1,
+                    "Aylık Premium",
+                    subtitle: "Aylık Tam Erişim",
+                    price: purchaseStore.localizedPrice(for: .premiumMonthly, fallback: "999,99"),
+                    suffix: "/ay"
+                )
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 24)
+
+            purchaseActions
+                .padding(.horizontal, 20)
+                .padding(.top, 28)
+                .padding(.bottom, 34)
+        }
+    }
+
+    private var creditContent: some View {
+        VStack(spacing: 0) {
+            creditHero
+                .padding(.top, 4)
+                .figmaEntrance(delay: 0.04, distance: 14)
+
+            Text("Sorgular için").font(.body).padding(.top, 6)
+            HStack(spacing: 4) {
+                Text("Kredi")
+                Text("Satın Al").foregroundStyle(DesignTokens.ColorToken.brandBlue)
+            }
+            .font(.title2.weight(.bold))
+            .padding(.top, 4)
+            Text("Abonelik gerektirmeden sorguların için kredi alabilirsin.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+                .padding(.top, 6)
+
+            VStack(spacing: 16) {
+                creditOption(3, price: purchaseStore.localizedPrice(for: .credits3, fallback: "199,99"))
+                creditOption(5, price: purchaseStore.localizedPrice(for: .credits5, fallback: "249,99"))
+                creditOption(10, price: purchaseStore.localizedPrice(for: .credits10, fallback: "499,99"))
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 32)
+
+            purchaseActions
+                .padding(.horizontal, 20)
+                .padding(.top, 28)
+                .padding(.bottom, 34)
+        }
     }
 
     private var purchaseActions: some View {
         VStack(spacing: 14) {
             Button {
-                Task { await purchaseStore.purchase(selectedProductID) }
+                let productID = selectedProductID
+                MetaAttributionService.shared.trackCheckoutStarted(
+                    productID: productID.rawValue,
+                    productType: selectedSection == .subscriptions ? "subscription" : "credits"
+                )
+                Task { await purchaseStore.purchase(productID) }
             } label: {
                 if purchaseStore.isPurchasing {
                     ProgressView().tint(.white)
                 } else {
-                    Text("Premium’a Geç")
+                    Text(selectedSection == .subscriptions ? "Premium’a Geç" : "Kredi Satın Al")
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -171,6 +276,21 @@ struct PremiumView: View {
             paywallEmoji("IntroStickerLaugh", size: 62, x: 91, y: 73, delay: 0.6)
         }
         .frame(height: 204)
+    }
+
+    private var creditHero: some View {
+        ZStack {
+            Circle()
+                .fill(DesignTokens.ColorToken.brandBlue.opacity(0.045))
+                .overlay(Circle().stroke(DesignTokens.ColorToken.brandBlue.opacity(0.2), lineWidth: 1))
+                .frame(width: 210, height: 210)
+            Image("CreditHero")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 210, height: 210)
+                .gentleFloat(distance: 6, duration: 2.6)
+        }
+        .frame(height: 230)
     }
 
     private func paywallEmoji(_ name: String, size: CGFloat, x: CGFloat, y: CGFloat, delay: Double) -> some View {
@@ -239,6 +359,40 @@ struct PremiumView: View {
                     Text("En Popüler")
                         .font(.caption2.weight(.semibold)).foregroundStyle(.white)
                         .padding(.horizontal, 10).padding(.vertical, 3)
+                        .background(DesignTokens.ColorToken.brandBlue, in: .capsule)
+                        .offset(y: -10)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func creditOption(_ amount: Int, price: String) -> some View {
+        Button {
+            withAnimation(.spring(duration: 0.35, bounce: 0.18)) { selectedCredit = amount }
+        } label: {
+            HStack(spacing: 8) {
+                Image("CreditGlyph").resizable().scaledToFit().frame(width: 26, height: 26)
+                Text("\(amount)").font(.title.weight(.bold))
+                Spacer()
+                Text(price).font(.subheadline.weight(.semibold))
+                Image(systemName: selectedCredit == amount ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(DesignTokens.ColorToken.brandBlue)
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 74)
+            .background(.white, in: .rect(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(selectedCredit == amount ? DesignTokens.ColorToken.brandBlue : .clear, lineWidth: 2)
+            }
+            .overlay(alignment: .top) {
+                if amount == 5 {
+                    Text("En Popüler")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
                         .background(DesignTokens.ColorToken.brandBlue, in: .capsule)
                         .offset(y: -10)
                 }

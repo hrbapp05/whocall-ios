@@ -165,7 +165,8 @@ struct AppRootView: View {
                         await purchaseStore.refreshCustomerInfo()
                         postAuthenticationFlow = PostAuthenticationPresentation.make(
                             requiresProfileCompletion: session.requiresProfileCompletion,
-                            isPremium: purchaseStore.isPremium
+                            isPremium: purchaseStore.isPremium,
+                            showPostLoginPaywall: purchaseStore.showPostLoginPaywall
                         )
                     }
                 }
@@ -207,6 +208,12 @@ struct AppRootView: View {
             guard !Task.isCancelled else { return }
             await MetaAttributionService.shared.requestAuthorizationIfNeeded()
         }
+        .task(id: shouldRegisterNotifications) {
+            guard shouldRegisterNotifications else { return }
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled, shouldRegisterNotifications else { return }
+            await NotificationRegistrationService.shared.requestAuthorizationAndRegister()
+        }
         .onChange(of: session.userID) { _, userID in
             recentLookupStore.activateAccount(userID)
             Task {
@@ -219,6 +226,14 @@ struct AppRootView: View {
 
     private var shouldRequestMetaTracking: Bool {
         session.isAuthenticated &&
+            !session.isResolvingAuthentication &&
+            !requiresCurrentLegalAcceptance &&
+            postAuthenticationFlow == nil
+    }
+
+    private var shouldRegisterNotifications: Bool {
+        session.userID != nil &&
+            session.isAuthenticated &&
             !session.isResolvingAuthentication &&
             !requiresCurrentLegalAcceptance &&
             postAuthenticationFlow == nil
@@ -248,8 +263,12 @@ struct PostAuthenticationPresentation: Identifiable, Equatable {
     let requiresProfileCompletion: Bool
     let showsPaywall: Bool
 
-    static func make(requiresProfileCompletion: Bool, isPremium: Bool) -> Self? {
-        let showsPaywall = !isPremium
+    static func make(
+        requiresProfileCompletion: Bool,
+        isPremium: Bool,
+        showPostLoginPaywall: Bool = true
+    ) -> Self? {
+        let showsPaywall = showPostLoginPaywall && !isPremium
         guard showsPaywall || requiresProfileCompletion else { return nil }
         return Self(
             requiresProfileCompletion: requiresProfileCompletion,

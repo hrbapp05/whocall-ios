@@ -93,6 +93,7 @@ final class PurchaseStore {
     private(set) var revenueCatPremium = false
     private(set) var promotionalPremium = false
     private(set) var promotionalPremiumExpiresAt: Date?
+    private(set) var showPostLoginPaywall = true
     private(set) var purchasedCreditBalance: Int
     private(set) var promotionalCreditBalance = 0
     private(set) var products: [String: StoreProduct] = [:]
@@ -144,6 +145,7 @@ final class PurchaseStore {
         await refreshPromotionalAccess()
 
         guard let publicSDKKey = RevenueCatConfiguration.publicSDKKey() else {
+            await syncPurchaseSnapshot()
             return
         }
 
@@ -162,6 +164,7 @@ final class PurchaseStore {
             for await customerInfo in Purchases.shared.customerInfoStream {
                 guard let self else { return }
                 self.apply(customerInfo)
+                await self.syncPurchaseSnapshot()
             }
         }
 
@@ -169,6 +172,7 @@ final class PurchaseStore {
             apply(customerInfo)
         }
         await refreshProducts()
+        await syncPurchaseSnapshot()
     }
 
     /// Firebase UID is a stable, non-PII identifier linked to the verified phone
@@ -178,6 +182,7 @@ final class PurchaseStore {
         switchLocalAccount(to: accountID)
         await refreshPromotionalAccess()
         if isConfigured { await synchronizeRevenueCatAccount() }
+        await syncPurchaseSnapshot()
     }
 
     var hasLookupAccess: Bool {
@@ -192,6 +197,7 @@ final class PurchaseStore {
         if purchasedCreditBalance > 0 {
             purchasedCreditBalance -= 1
             defaults.set(purchasedCreditBalance, forKey: creditStorageKey)
+            await syncPurchaseSnapshot()
             return true
         }
         return await consumePromotionalCredit()
@@ -218,6 +224,7 @@ final class PurchaseStore {
                 alertMessage = "Satın alma bilgileri yenilenemedi. Lütfen bağlantınızı kontrol edip tekrar deneyin."
             }
         }
+        await syncPurchaseSnapshot()
     }
 
     func localizedPrice(for productID: RevenueCatProductID, fallback: String) -> String {
@@ -261,6 +268,7 @@ final class PurchaseStore {
             } else {
                 alertMessage = "WhoCall Premium etkinleştirildi."
             }
+            await syncPurchaseSnapshot()
             return true
         } catch {
             alertMessage = "Satın alma tamamlanamadı: \(error.localizedDescription)"
@@ -277,6 +285,7 @@ final class PurchaseStore {
         do {
             let customerInfo = try await Purchases.shared.restorePurchases()
             apply(customerInfo)
+            await syncPurchaseSnapshot()
             alertMessage = isPremium
                 ? "Premium aboneliğiniz geri yüklendi."
                 : "Geri yüklenecek etkin bir abonelik bulunamadı."
@@ -367,6 +376,12 @@ final class PurchaseStore {
         guard activeAccountID != accountID else { return }
         activeAccountID = accountID
         purchasedCreditBalance = defaults.integer(forKey: creditStorageKey)
+        // Never carry server-managed access from the previous verified account
+        // while the new account's callable refresh is still in flight or offline.
+        promotionalPremium = false
+        promotionalPremiumExpiresAt = nil
+        promotionalCreditBalance = 0
+        showPostLoginPaywall = true
     }
 
 #if DEBUG
@@ -405,6 +420,7 @@ final class PurchaseStore {
                 0,
                 payload["promotionalCreditBalance"] as? Int ?? 0
             )
+            showPostLoginPaywall = payload["showPostLoginPaywall"] as? Bool ?? true
             if let rawDate = payload["promotionalPremiumExpiresAt"] as? String {
                 promotionalPremiumExpiresAt = ISO8601DateFormatter().date(from: rawDate)
             } else {
@@ -434,6 +450,21 @@ final class PurchaseStore {
         }
 #else
         return false
+#endif
+    }
+
+    private func syncPurchaseSnapshot() async {
+#if canImport(FirebaseFunctions)
+        guard FirebaseApp.app() != nil, activeAccountID != nil else { return }
+        do {
+            _ = try await functions.httpsCallable("syncPurchaseSnapshot").call([
+                "purchasedCreditBalance": purchasedCreditBalance,
+                "revenueCatPremiumActive": revenueCatPremium
+            ])
+        } catch {
+            // This snapshot is observability for the admin panel only. A temporary
+            // sync failure must never block purchases, lookups, or account access.
+        }
 #endif
     }
 

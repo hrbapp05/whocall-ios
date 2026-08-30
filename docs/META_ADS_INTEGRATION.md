@@ -1,6 +1,6 @@
 # Meta Ads ve Conversions API entegrasyonu
 
-Son güncelleme: 22 Ağustos 2026
+Son güncelleme: 30 Ağustos 2026
 
 ## Üretim yapılandırması
 
@@ -22,8 +22,9 @@ Son güncelleme: 22 Ağustos 2026
 2. İzin verilirse Meta SDK uygulama aktivasyon sinyalini gönderir ve RevenueCat'e Meta anonim kimliği ile kullanılabilir cihaz reklam kimlikleri aktarılır.
 3. RevenueCat, doğruladığı abonelik ve tüketilebilir kredi satın alma olaylarını sunucu tarafında Meta Conversions API'ye yollar.
 4. Meta'ya gönderilen varsayılan satın alma olayları `StartTrial`, `Subscribe` ve `fb_mobile_purchase` olur.
+5. Uygulama, satın alma hunisinin gelir içermeyen `ViewContent` (paywall görüntüleme), `InitiateCheckout` (satın alma başlangıcı) ve `whocall_paywall_dismissed` (paywall kapatma) olaylarını doğrudan Meta SDK ile gönderir.
 
-Meta SDK'nın otomatik satın alma/gelir kaydı hem uygulama yapılandırmasında hem Meta panelinde kapalıdır. Böylece RevenueCat'in gönderdiği doğrulanmış satın alma olayları ikinci kez sayılmaz.
+Meta SDK'nın otomatik satın alma/gelir kaydı hem uygulama yapılandırmasında hem Meta panelinde kapalıdır. Başarılı abonelik ve kredi satın alma olayları istemciden ikinci kez gönderilmez; RevenueCat doğrulanmış gelir olaylarının tek kaynağıdır.
 
 ## Gizlilik sınırları
 

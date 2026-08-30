@@ -47,6 +47,13 @@ test("accepts Turkish names and rejects markup", () => {
   assert.equal(normalizeName("  Göktuğ  "), "Göktuğ");
   assert.equal(normalizeName("Nur-Su"), "Nur-Su");
   assert.equal(normalizeName("<script>"), null);
+  assert.equal(normalizeName(""), null);
+  assert.equal(normalizeName("S."), null);
+  assert.equal(normalizeName("Ali123"), null);
+  assert.equal(normalizeName("Test"), null);
+  assert.equal(normalizeName("WhoCall"), null);
+  assert.equal(normalizeName("Şerefsiz"), null);
+  assert.equal(normalizeName("Aaaaa"), null);
 });
 
 test("splits a verified display name for lazy directory publication", () => {

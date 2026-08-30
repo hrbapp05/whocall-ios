@@ -21,6 +21,33 @@
   font-size: 11px;
 }
 
+.users-filters {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  padding: 14px 22px;
+  background: #f8faff;
+  border-bottom: 1px solid var(--line);
+}
+
+.users-filters label {
+  display: grid;
+  gap: 5px;
+  min-width: 170px;
+}
+
+.users-filters label > span {
+  color: #77849a;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.users-filters select {
+  min-height: 39px;
+}
+
 .users-table {
   min-width: 1080px;
 }
@@ -51,6 +78,25 @@
 .user-primary small,
 .user-meta {
   display: block;
+}
+
+.user-id {
+  display: block;
+  max-width: 210px;
+  margin-top: 5px;
+  overflow: hidden;
+  color: #71809a;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.credit-breakdown {
+  display: block;
+  margin-top: 4px;
+  color: #7c899d;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .user-primary small,
@@ -99,5 +145,15 @@
   .users-toolbar > span {
     width: 100%;
     margin: 4px 0 0;
+  }
+
+  .users-filters {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .users-filters label {
+    flex: 1 1 160px;
+    min-width: 0;
   }
 }

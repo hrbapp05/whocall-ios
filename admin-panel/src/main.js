@@ -1,5 +1,6 @@
 import "./styles.css";
 import "./users.css";
+import "./campaigns.css";
 import {initializeApp} from "firebase/app";
 import {
   RecaptchaVerifier,
@@ -31,7 +32,12 @@ const state = {
   phone: null,
   users: null,
   userSearch: "",
+  userMembershipFilter: "all",
+  userCreditFilter: "all",
+  userSort: "joined-desc",
   reports: null,
+  reportFilter: "all",
+  configuration: null,
   audits: null,
   confirmation: null,
   recaptcha: null,
@@ -185,6 +191,7 @@ function shell(content) {
           ${navItem("number", "Numara Yönetimi", "⌕")}
           ${navItem("users", "Kullanıcılar", "♙")}
           ${navItem("reports", "Raporlar", "!")}
+          ${navItem("campaigns", "Ayarlar ve Kampanyalar", "✦")}
           ${navItem("audits", "İşlem Geçmişi", "↺")}
         </nav>
         <div class="sidebar-account">
@@ -206,7 +213,7 @@ function shell(content) {
 }
 
 function routeTitle() {
-  return ({overview: "Genel Bakış", number: "Numara Yönetimi", users: "Kullanıcılar", reports: "Raporlar", audits: "İşlem Geçmişi"})[state.route];
+  return ({overview: "Genel Bakış", number: "Numara Yönetimi", users: "Kullanıcılar", reports: "Raporlar", campaigns: "Ayarlar ve Kampanyalar", audits: "İşlem Geçmişi"})[state.route];
 }
 
 function bindShell() {
@@ -251,6 +258,7 @@ function overviewContent() {
     <section class="info-grid">
       <article class="panel"><span class="panel-symbol blue">⌕</span><h3>Numara ve profil</h3><p>Kaydı ekleyin, görünürlüğü değiştirin veya arama sonuçlarından tamamen çıkarın.</p><button class="text-action" data-go="number">Numara yönetimine git →</button></article>
       <article class="panel"><span class="panel-symbol amber">!</span><h3>Topluluk güvenliği</h3><p>Şikâyetleri inceleyin, içeriği kaldırın ve gerektiğinde hesabı askıya alın.</p><button class="text-action" data-go="reports">Raporları incele →</button></article>
+      <article class="panel"><span class="panel-symbol violet">✦</span><h3>Kampanyalar</h3><p>Paywall deneyini, başlangıç kredisini, bildirimleri ve toplu hediyeleri yönetin.</p><button class="text-action" data-go="campaigns">Kampanyaları aç →</button></article>
     </section>`;
 }
 
@@ -319,8 +327,8 @@ function phoneContent(data) {
       <section class="panel span-two"><div class="panel-heading"><div><p class="eyebrow">DİZİN KAYDI</p><h3>Profil ve görünürlük</h3></div><span class="panel-symbol blue">◎</span></div>
         <form id="profile-form" class="form-grid"><label>Ad<input name="firstName" value="${escapeHTML(profile.firstName)}" required /></label><label>Soyad<input name="lastName" value="${escapeHTML(profile.lastName)}" required /></label><label class="toggle-row span-two"><span><strong>Sorgulama görünürlüğü</strong><small>Kapalıysa kullanıcıya görünürlük uyarısı gösterilir.</small></span><input name="isVisible" type="checkbox" ${profile.isVisible !== false ? "checked" : ""} /><i></i></label><div class="form-actions span-two"><button class="button button-primary">Kaydı kaydet</button>${data.isExcluded ? `<button class="button button-secondary" type="button" data-action="restore-phone">Dizine geri al</button>` : `<button class="button button-danger-soft" type="button" data-action="exclude-phone">Dizinden çıkar</button>`}</div></form>
       </section>
-      <section class="panel"><div class="panel-heading"><div><p class="eyebrow">ÜYELİK</p><h3>Promosyon Premium</h3></div><span class="panel-symbol violet">★</span></div><div class="membership-state"><strong>${account.promotionalPremiumActive ? "Aktif" : "Aktif değil"}</strong><small>${account.promotionalPremiumExpiresAt ? `${dateTime(account.promotionalPremiumExpiresAt)} tarihine kadar` : account.promotionalPremiumActive ? "Süresiz promosyon" : "Apple aboneliğinden bağımsız"}</small></div><form id="premium-form" class="inline-form"><select name="duration"><option value="7-days">7 gün</option><option value="30-days">30 gün</option><option value="lifetime">Süresiz</option></select><button class="button button-primary">Tanımla</button></form><button class="button button-danger-soft full" data-action="revoke-premium">Promosyonu iptal et</button><p class="fineprint">App Store aboneliği panelden iptal edilmez; yalnızca WhoCall promosyon hakkı yönetilir.</p></section>
-      <section class="panel"><div class="panel-heading"><div><p class="eyebrow">KREDİ</p><h3>Promosyon kredisi</h3></div><span class="panel-symbol cyan">◆</span></div><div class="credit-total"><strong>${Number(account.promotionalCreditBalance || 0)}</strong><span>kredi</span></div><form id="credit-form" class="inline-form"><input name="adjustment" type="number" min="-10000" max="10000" step="1" placeholder="+5 / -2" required /><button class="button button-primary">Uygula</button></form><p class="fineprint">Satın alınmış App Store kredileri değişmez; bu bakiye sunucudan eklenir veya eksiltilir.</p></section>
+      <section class="panel"><div class="panel-heading"><div><p class="eyebrow">ÜYELİK</p><h3>Premium durumu</h3></div><span class="panel-symbol violet">★</span></div><div class="membership-state"><strong>${account.premiumActive ? "Aktif" : "Aktif değil"}</strong><small>${account.revenueCatPremiumActive ? "App Store / RevenueCat aboneliği" : account.promotionalPremiumExpiresAt ? `${dateTime(account.promotionalPremiumExpiresAt)} tarihine kadar promosyon` : account.promotionalPremiumActive ? "Süresiz promosyon" : "Etkin abonelik bulunmuyor"}</small></div><form id="premium-form" class="inline-form"><select name="duration"><option value="7-days">7 gün</option><option value="30-days">30 gün</option><option value="lifetime">Süresiz</option></select><button class="button button-primary">Promosyon tanımla</button></form><button class="button button-danger-soft full" data-action="revoke-premium">Promosyonu iptal et</button><p class="fineprint">App Store aboneliği panelden iptal edilmez; yalnızca WhoCall promosyon hakkı yönetilir.</p></section>
+      <section class="panel"><div class="panel-heading"><div><p class="eyebrow">KREDİ</p><h3>Toplam kredi</h3></div><span class="panel-symbol cyan">◆</span></div><div class="credit-total"><strong>${Number(account.totalCreditBalance || 0)}</strong><span>kredi</span></div><p class="credit-breakdown">${Number(account.purchasedCreditBalance || 0)} satın alınmış + ${Number(account.promotionalCreditBalance || 0)} promosyon</p><form id="credit-form" class="inline-form"><input name="adjustment" type="number" min="-10000" max="10000" step="1" placeholder="+5 / -2" required /><button class="button button-primary">Uygula</button></form><p class="fineprint">Panel yalnızca promosyon kredisini değiştirir. App Store bakiyesi uygulamanın son eşitlemesinden okunur${account.purchaseSnapshotUpdatedAt ? ` (${dateTime(account.purchaseSnapshotUpdatedAt)})` : ""}.</p></section>
       <section class="panel"><div class="panel-heading"><div><p class="eyebrow">GÜVEN</p><h3>Profil güven seviyesi</h3></div><span class="panel-symbol green">✓</span></div><form id="trust-form" class="stack"><select name="trustLevel"><option value="automatic" ${!community.trustOverride ? "selected" : ""}>Raporlara göre otomatik</option><option value="high" ${community.trustOverride === "high" ? "selected" : ""}>Yüksek güven</option><option value="medium" ${community.trustOverride === "medium" ? "selected" : ""}>Orta güven</option><option value="risky" ${community.trustOverride === "risky" ? "selected" : ""}>Riskli</option></select><button class="button button-secondary">Güven seviyesini kaydet</button></form><p class="fineprint">Mevcut rapor sayısı: ${Number(community.reportCount || 0)}</p></section>
       <section class="panel span-two"><div class="panel-heading"><div><p class="eyebrow">ETİKETLER</p><h3>Topluluk etiketleri</h3></div><span class="count-pill">${(community.tags || []).length}</span></div><div class="tag-list">${(community.tags || []).length ? community.tags.map((tag) => `<span class="tag">${escapeHTML(tag)}<button data-edit-tag="${escapeHTML(tag)}" title="Düzenle">✎</button><button data-delete-tag="${escapeHTML(tag)}" title="Sil">×</button></span>`).join("") : `<p class="muted">Henüz etiket yok.</p>`}</div><form id="tag-form" class="inline-form"><input name="tag" maxlength="24" placeholder="Yeni etiket" required /><button class="button button-primary">Etiket ekle</button></form></section>
       <section class="panel span-two"><div class="panel-heading"><div><p class="eyebrow">YORUMLAR</p><h3>Topluluk yorumları</h3></div><span class="count-pill">${(community.comments || []).length}</span></div><div class="comment-list">${(community.comments || []).length ? community.comments.map(commentCard).join("") : `<p class="muted padded">Henüz yorum yok.</p>`}</div><form id="comment-form" class="comment-form"><input type="hidden" name="commentID" /><label>Yazar<input name="author" maxlength="40" value="WhoCall Ekibi" required /></label><label class="span-two">Yorum<textarea name="body" maxlength="500" placeholder="Yorum metni" required></textarea></label><div class="form-actions span-two"><button class="button button-primary"><span id="comment-submit-label">Yorum ekle</span></button><button id="cancel-comment-edit" class="button button-link hidden" type="button">Düzenlemeyi iptal et</button></div></form></section>
@@ -406,27 +414,63 @@ function usersContent(loadFailed = false) {
   const items = state.users?.items || [];
   const term = state.userSearch.trim().toLocaleLowerCase("tr-TR");
   const digits = state.userSearch.replace(/\D/g, "");
-  const filtered = items.filter((user) => !term ||
-    user.displayName.toLocaleLowerCase("tr-TR").includes(term) ||
-    (digits && user.phone.replace(/\D/g, "").includes(digits)));
-  const body = filtered.length ? filtered.map(userRow).join("") : `<tr><td colspan="8"><div class="table-empty"><strong>${loadFailed ? "Kullanıcılar yüklenemedi" : term ? "Eşleşen kullanıcı bulunamadı" : "Henüz doğrulanmış kullanıcı yok"}</strong><span>${loadFailed ? "Yenile düğmesiyle tekrar deneyin." : "Telefon doğrulaması tamamlanan hesaplar burada görünür."}</span></div></td></tr>`;
+  const filtered = items.filter((user) => {
+    const matchesSearch = !term ||
+      user.displayName.toLocaleLowerCase("tr-TR").includes(term) ||
+      String(user.revenueCatAppUserID || "").toLocaleLowerCase("tr-TR").includes(term) ||
+      (digits && user.phone.replace(/\D/g, "").includes(digits));
+    const matchesMembership = state.userMembershipFilter === "all" ||
+      (state.userMembershipFilter === "premium" ? user.premiumActive : !user.premiumActive);
+    const credits = Number(user.totalCreditBalance || 0);
+    const matchesCredits = state.userCreditFilter === "all" ||
+      (state.userCreditFilter === "zero" && credits === 0) ||
+      (state.userCreditFilter === "1-5" && credits >= 1 && credits <= 5) ||
+      (state.userCreditFilter === "6-20" && credits >= 6 && credits <= 20) ||
+      (state.userCreditFilter === "21-plus" && credits >= 21);
+    return matchesSearch && matchesMembership && matchesCredits;
+  }).sort((left, right) => {
+    if (state.userSort === "joined-asc") {
+      return (Date.parse(left.createdAt || "") || 0) - (Date.parse(right.createdAt || "") || 0);
+    }
+    if (state.userSort === "credits-desc") {
+      return Number(right.totalCreditBalance || 0) - Number(left.totalCreditBalance || 0);
+    }
+    if (state.userSort === "credits-asc") {
+      return Number(left.totalCreditBalance || 0) - Number(right.totalCreditBalance || 0);
+    }
+    if (state.userSort === "name-asc") {
+      return left.displayName.localeCompare(right.displayName, "tr", {sensitivity: "base"});
+    }
+    if (state.userSort === "last-signin-desc") {
+      return (Date.parse(right.lastSignInAt || "") || 0) - (Date.parse(left.lastSignInAt || "") || 0);
+    }
+    return (Date.parse(right.createdAt || "") || 0) - (Date.parse(left.createdAt || "") || 0);
+  });
+  const hasFilters = state.userSearch || state.userMembershipFilter !== "all" ||
+    state.userCreditFilter !== "all" || state.userSort !== "joined-desc";
+  const body = filtered.length ? filtered.map(userRow).join("") : `<tr><td colspan="8"><div class="table-empty"><strong>${loadFailed ? "Kullanıcılar yüklenemedi" : hasFilters ? "Eşleşen kullanıcı bulunamadı" : "Henüz doğrulanmış kullanıcı yok"}</strong><span>${loadFailed ? "Yenile düğmesiyle tekrar deneyin." : "Telefon doğrulaması tamamlanan hesaplar burada görünür."}</span></div></td></tr>`;
   return `<section class="page-intro"><div><p class="eyebrow">DOĞRULANMIŞ HESAPLAR</p><h2>Kullanıcılar</h2><p class="muted">Telefon doğrulamasıyla giriş yapan kullanıcıları görüntüleyin ve hesaplarını yönetin.</p></div><button id="refresh-users" class="button button-secondary">Yenile</button></section>
-    <section class="panel users-panel"><form id="user-search" class="users-toolbar"><input name="search" value="${escapeHTML(state.userSearch)}" placeholder="Ad veya telefon numarası ara" aria-label="Kullanıcı ara" /><button class="button button-primary">Ara</button>${state.userSearch ? `<button id="clear-user-search" class="button button-link" type="button">Temizle</button>` : ""}<span>${filtered.length} kullanıcı gösteriliyor</span></form>
+    <section class="panel users-panel"><form id="user-search" class="users-toolbar"><input name="search" value="${escapeHTML(state.userSearch)}" placeholder="Ad, telefon veya RevenueCat User ID ara" aria-label="Kullanıcı ara" /><button class="button button-primary">Ara</button>${state.userSearch ? `<button id="clear-user-search" class="button button-link" type="button">Aramayı temizle</button>` : ""}<span>${filtered.length} / ${items.length} kullanıcı gösteriliyor</span></form>
+      <div class="users-filters">
+        <label><span>Abonelik</span><select id="user-membership-filter"><option value="all" ${state.userMembershipFilter === "all" ? "selected" : ""}>Tümü</option><option value="premium" ${state.userMembershipFilter === "premium" ? "selected" : ""}>Premium</option><option value="standard" ${state.userMembershipFilter === "standard" ? "selected" : ""}>Premium değil</option></select></label>
+        <label><span>Kredi</span><select id="user-credit-filter"><option value="all" ${state.userCreditFilter === "all" ? "selected" : ""}>Tümü</option><option value="zero" ${state.userCreditFilter === "zero" ? "selected" : ""}>0 kredi</option><option value="1-5" ${state.userCreditFilter === "1-5" ? "selected" : ""}>1–5 kredi</option><option value="6-20" ${state.userCreditFilter === "6-20" ? "selected" : ""}>6–20 kredi</option><option value="21-plus" ${state.userCreditFilter === "21-plus" ? "selected" : ""}>21+ kredi</option></select></label>
+        <label><span>Sıralama</span><select id="user-sort"><option value="joined-desc" ${state.userSort === "joined-desc" ? "selected" : ""}>En yeni üyeler</option><option value="joined-asc" ${state.userSort === "joined-asc" ? "selected" : ""}>En eski üyeler</option><option value="credits-desc" ${state.userSort === "credits-desc" ? "selected" : ""}>Kredi: yüksekten düşüğe</option><option value="credits-asc" ${state.userSort === "credits-asc" ? "selected" : ""}>Kredi: düşükten yükseğe</option><option value="last-signin-desc" ${state.userSort === "last-signin-desc" ? "selected" : ""}>Son giriş</option><option value="name-asc" ${state.userSort === "name-asc" ? "selected" : ""}>Ada göre</option></select></label>
+        ${hasFilters ? `<button id="clear-user-filters" class="button button-link" type="button">Tüm filtreleri temizle</button>` : ""}
+      </div>
       <div class="table-wrap"><table class="users-table"><thead><tr><th>Kullanıcı</th><th>Telefon</th><th>Profil</th><th>Premium</th><th>Kredi</th><th>Son giriş</th><th>Hesap</th><th>İşlem</th></tr></thead><tbody>${body}</tbody></table></div>
       ${state.users?.nextPageToken ? `<div class="load-more"><button id="load-more-users" class="button button-secondary">Daha fazla kullanıcı yükle</button></div>` : ""}
     </section>`;
 }
 
 function userRow(user) {
-  const premium = user.promotionalPremiumActive ?
-    (user.promotionalPremiumExpiresAt ? dateTime(user.promotionalPremiumExpiresAt) : "Süresiz") : "Yok";
-  return `<tr><td><span class="user-primary"><span class="avatar">${escapeHTML((user.displayName || "W").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHTML(user.displayName)}</strong><small>${dateTime(user.createdAt)} tarihinde katıldı</small></span></span></td><td><strong>${escapeHTML(user.phone)}</strong><small class="user-meta">${escapeHTML(user.phoneMasked)}</small></td><td>${statusBadge(user.profilePublished ? user.isVisible ? "Görünür" : "Gizli" : "Yayınlanmadı", user.profilePublished && user.isVisible, "muted")}</td><td>${escapeHTML(premium)}</td><td>${Number(user.promotionalCreditBalance || 0)}</td><td>${dateTime(user.lastSignInAt)}</td><td>${statusBadge(user.disabled ? "Devre dışı" : "Aktif", !user.disabled, user.disabled ? "danger" : "muted")}</td><td><div class="user-actions"><button class="table-action" data-manage-user="${escapeHTML(user.phone)}">Yönet</button><button class="table-action ${user.disabled ? "" : "danger-text"}" data-user-status="${escapeHTML(user.uid)}" data-disabled="${user.disabled ? "false" : "true"}" data-user-name="${escapeHTML(user.displayName)}">${user.disabled ? "Etkinleştir" : "Devre dışı bırak"}</button></div></td></tr>`;
+  const premium = user.revenueCatPremiumActive ? "App Store" : user.promotionalPremiumActive ?
+    (user.promotionalPremiumExpiresAt ? `Promosyon · ${dateTime(user.promotionalPremiumExpiresAt)}` : "Promosyon · Süresiz") : "Yok";
+  return `<tr><td><span class="user-primary"><span class="avatar">${escapeHTML((user.displayName || "W").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHTML(user.displayName)}</strong><small>${dateTime(user.createdAt)} tarihinde katıldı</small><code class="user-id" title="RevenueCat App User ID">RC: ${escapeHTML(user.revenueCatAppUserID || user.uid)}</code></span></span></td><td><strong>${escapeHTML(user.phone)}</strong><small class="user-meta">${escapeHTML(user.phoneMasked)}</small></td><td>${statusBadge(user.profilePublished ? user.isVisible ? "Görünür" : "Gizli" : "Yayınlanmadı", user.profilePublished && user.isVisible, "muted")}</td><td>${escapeHTML(premium)}</td><td><strong>${Number(user.totalCreditBalance || 0)}</strong><small class="credit-breakdown">${Number(user.purchasedCreditBalance || 0)} satın alınmış · ${Number(user.promotionalCreditBalance || 0)} promosyon</small></td><td>${dateTime(user.lastSignInAt)}</td><td>${statusBadge(user.disabled ? "Devre dışı" : "Aktif", !user.disabled, user.disabled ? "danger" : "muted")}</td><td><div class="user-actions"><button class="table-action" data-manage-user="${escapeHTML(user.phone)}">Yönet</button><button class="table-action ${user.disabled ? "" : "danger-text"}" data-user-status="${escapeHTML(user.uid)}" data-disabled="${user.disabled ? "false" : "true"}" data-user-name="${escapeHTML(user.displayName)}">${user.disabled ? "Etkinleştir" : "Devre dışı bırak"}</button></div></td></tr>`;
 }
 
 function bindUserActions() {
   document.querySelector("#refresh-users")?.addEventListener("click", () => {
     state.users = null;
-    state.userSearch = "";
     renderUsers();
   });
   document.querySelector("#user-search")?.addEventListener("submit", (event) => {
@@ -437,6 +481,29 @@ function bindUserActions() {
   });
   document.querySelector("#clear-user-search")?.addEventListener("click", () => {
     state.userSearch = "";
+    shell(usersContent());
+    bindUserActions();
+  });
+  document.querySelector("#user-membership-filter")?.addEventListener("change", (event) => {
+    state.userMembershipFilter = event.currentTarget.value;
+    shell(usersContent());
+    bindUserActions();
+  });
+  document.querySelector("#user-credit-filter")?.addEventListener("change", (event) => {
+    state.userCreditFilter = event.currentTarget.value;
+    shell(usersContent());
+    bindUserActions();
+  });
+  document.querySelector("#user-sort")?.addEventListener("change", (event) => {
+    state.userSort = event.currentTarget.value;
+    shell(usersContent());
+    bindUserActions();
+  });
+  document.querySelector("#clear-user-filters")?.addEventListener("click", () => {
+    state.userSearch = "";
+    state.userMembershipFilter = "all";
+    state.userCreditFilter = "all";
+    state.userSort = "joined-desc";
     shell(usersContent());
     bindUserActions();
   });
@@ -470,21 +537,33 @@ async function renderReports() {
 }
 
 function reportsContent() {
-  const content = state.reports?.content || [];
-  const numbers = state.reports?.numbers || [];
-  return `<section class="page-intro"><div><p class="eyebrow">MODERASYON MERKEZİ</p><h2>Topluluk raporları</h2><p class="muted">İçerik şikâyetlerini ve numara bildirimlerini tek kuyrukta inceleyin.</p></div><button id="refresh-reports" class="button button-secondary">Yenile</button></section><div class="report-layout"><section class="panel"><div class="panel-heading"><div><h3>İçerik şikâyetleri</h3><p class="muted">Yorum ve etiketler</p></div><span class="count-pill">${content.filter((item) => item.status === "pending").length} bekleyen</span></div><div class="report-list">${content.length ? content.map(contentReportCard).join("") : `<p class="muted padded">İçerik raporu yok.</p>`}</div></section><section class="panel"><div class="panel-heading"><div><h3>Numara raporları</h3><p class="muted">Spam ve yanlış bilgi bildirimleri</p></div><span class="count-pill">${numbers.filter((item) => (item.status || "pending") === "pending").length} bekleyen</span></div><div class="report-list">${numbers.length ? numbers.map(numberReportCard).join("") : `<p class="muted padded">Numara raporu yok.</p>`}</div></section></div>`;
+  const allContent = state.reports?.content || [];
+  const allNumbers = state.reports?.numbers || [];
+  const matches = (report) => state.reportFilter === "all" ||
+    (state.reportFilter === "pending" && (report.status || "pending") === "pending") ||
+    (state.reportFilter === "resolved" && report.status === "resolved") ||
+    (state.reportFilter === "dismissed" && report.status === "dismissed");
+  const content = allContent.filter(matches);
+  const numbers = allNumbers.filter(matches);
+  const filterButton = (value, label) => `<button class="filter-chip ${state.reportFilter === value ? "active" : ""}" data-report-filter="${value}">${label}</button>`;
+  return `<section class="page-intro"><div><p class="eyebrow">MODERASYON MERKEZİ</p><h2>Topluluk raporları</h2><p class="muted">Kayıtlı üyelerin numarası yalnızca yetkili yöneticiye tam, diğer kayıtlar maskeli gösterilir.</p></div><button id="refresh-reports" class="button button-secondary">Yenile</button></section><div class="filter-row">${filterButton("all", "Tümü")}${filterButton("pending", "Açık / işlem bekleyen")}${filterButton("resolved", "Onaylanan")}${filterButton("dismissed", "Kapanan / reddedilen")}</div><div class="report-layout"><section class="panel"><div class="panel-heading"><div><h3>İçerik şikâyetleri</h3><p class="muted">Yorum ve etiketler</p></div><span class="count-pill">${allContent.filter((item) => item.status === "pending").length} bekleyen</span></div><div class="report-list">${content.length ? content.map(contentReportCard).join("") : `<p class="muted padded">Bu filtrede içerik raporu yok.</p>`}</div></section><section class="panel"><div class="panel-heading"><div><h3>Numara raporları</h3><p class="muted">Spam ve yanlış bilgi bildirimleri</p></div><span class="count-pill">${allNumbers.filter((item) => (item.status || "pending") === "pending").length} bekleyen</span></div><div class="report-list">${numbers.length ? numbers.map(numberReportCard).join("") : `<p class="muted padded">Bu filtrede numara raporu yok.</p>`}</div></section></div>`;
 }
 
 function contentReportCard(report) {
-  return `<article class="report-card"><div class="report-top"><span class="content-kind">${report.contentType === "comment" ? "Yorum" : "Etiket"}</span>${statusBadge(report.status || "pending", report.status === "resolved", report.status === "dismissed" ? "muted" : "danger")}</div><blockquote>${escapeHTML(report.contentSnapshot || "İçerik görüntülenemiyor")}</blockquote><p><strong>Neden:</strong> ${escapeHTML(report.reason)}</p><small>${dateTime(report.createdAt)} · Son tarih ${dateTime(report.reviewBy)}</small>${report.status === "pending" ? `<div class="report-actions"><button class="button button-secondary compact" data-content-report="${escapeHTML(report.id)}" data-decision="dismiss">Reddet</button><button class="button button-danger-soft compact" data-content-report="${escapeHTML(report.id)}" data-decision="remove-content">İçeriği kaldır</button><button class="button button-danger compact" data-content-report="${escapeHTML(report.id)}" data-decision="remove-content-and-suspend-user">Kaldır ve hesabı askıya al</button></div>` : `<p class="resolved-note">Karar: ${escapeHTML(report.decision || "—")} · ${dateTime(report.resolvedAt)}</p>`}</article>`;
+  return `<article class="report-card"><div class="report-top"><span class="content-kind">${report.contentType === "comment" ? "Yorum" : "Etiket"}</span>${statusBadge(report.status || "pending", report.status === "resolved", report.status === "dismissed" ? "muted" : "danger")}</div><div class="report-parties"><span><small>Raporlayan</small><strong>${escapeHTML(report.reporterPhone || report.reporterPhoneMasked || "Eski kayıtta bilinmiyor")}</strong></span><span><small>Hedef numara</small><strong>${escapeHTML(report.targetPhone || report.targetPhoneMasked || "Bilinmiyor")}</strong></span></div><blockquote>${escapeHTML(report.contentSnapshot || "İçerik görüntülenemiyor")}</blockquote><p><strong>Neden:</strong> ${escapeHTML(report.reason)}</p><small>${dateTime(report.createdAt)} · Son tarih ${dateTime(report.reviewBy)}</small>${report.status === "pending" ? `<div class="report-actions"><button class="button button-secondary compact" data-content-report="${escapeHTML(report.id)}" data-decision="dismiss">Reddet</button><button class="button button-danger-soft compact" data-content-report="${escapeHTML(report.id)}" data-decision="remove-content">İçeriği kaldır</button><button class="button button-danger compact" data-content-report="${escapeHTML(report.id)}" data-decision="remove-content-and-suspend-user">Kaldır ve hesabı askıya al</button></div>` : `<p class="resolved-note">Karar: ${escapeHTML(report.decision || "—")} · ${dateTime(report.resolvedAt)}</p>`}</article>`;
 }
 
 function numberReportCard(report) {
-  return `<article class="report-card"><div class="report-top"><code>${escapeHTML(report.communityID.slice(0, 16))}…</code>${statusBadge(report.status || "pending", report.status === "resolved", report.status === "dismissed" ? "muted" : "danger")}</div><h4>${escapeHTML(report.reason || "Diğer")}</h4><small>${dateTime(report.updatedAt || report.createdAt)}</small>${(report.status || "pending") === "pending" ? `<div class="report-actions"><button class="button button-secondary compact" data-global-number-report="${escapeHTML(report.id)}" data-community="${escapeHTML(report.communityID)}" data-decision="dismiss">Reddet</button><button class="button button-primary compact" data-global-number-report="${escapeHTML(report.id)}" data-community="${escapeHTML(report.communityID)}" data-decision="uphold">Onayla</button></div>` : `<p class="resolved-note">Karar: ${escapeHTML(report.decision || "—")}</p>`}</article>`;
+  return `<article class="report-card"><div class="report-top"><code>${escapeHTML(report.communityID.slice(0, 16))}…</code>${statusBadge(report.status || "pending", report.status === "resolved", report.status === "dismissed" ? "muted" : "danger")}</div><div class="report-parties"><span><small>Raporlayan</small><strong>${escapeHTML(report.reporterPhone || report.reporterPhoneMasked || "Eski kayıtta bilinmiyor")}</strong></span><span><small>Raporlanan</small><strong>${escapeHTML(report.targetPhone || report.targetPhoneMasked || "Bilinmiyor")}</strong></span></div><h4>${escapeHTML(report.reason || "Diğer")}</h4><small>${dateTime(report.updatedAt || report.createdAt)}</small>${(report.status || "pending") === "pending" ? `<div class="report-actions"><button class="button button-secondary compact" data-global-number-report="${escapeHTML(report.id)}" data-community="${escapeHTML(report.communityID)}" data-decision="dismiss">Reddet</button><button class="button button-primary compact" data-global-number-report="${escapeHTML(report.id)}" data-community="${escapeHTML(report.communityID)}" data-decision="uphold">Onayla</button></div>` : `<p class="resolved-note">Karar: ${escapeHTML(report.decision || "—")}</p>`}</article>`;
 }
 
 function bindReportActions() {
   document.querySelector("#refresh-reports")?.addEventListener("click", () => { state.reports = null; renderReports(); });
+  document.querySelectorAll("[data-report-filter]").forEach((button) => button.addEventListener("click", () => {
+    state.reportFilter = button.dataset.reportFilter;
+    shell(reportsContent());
+    bindReportActions();
+  }));
   document.querySelectorAll("[data-content-report]").forEach((button) => button.addEventListener("click", async () => {
     try { await moderate({reportID: button.dataset.contentReport, decision: button.dataset.decision}); showToast("İçerik raporu sonuçlandırıldı."); state.reports = null; state.overview = null; renderReports(); }
     catch (error) { showToast(messageFor(error), "error"); }
@@ -493,6 +572,80 @@ function bindReportActions() {
     try { await mutate({action: "resolve-number-report", communityID: button.dataset.community, reportID: button.dataset.globalNumberReport, decision: button.dataset.decision}); showToast("Numara raporu sonuçlandırıldı."); state.reports = null; renderReports(); }
     catch (error) { showToast(messageFor(error), "error"); }
   }));
+}
+
+async function renderCampaigns() {
+  shell(state.configuration ? campaignsContent() : loadingCards());
+  if (!state.configuration) {
+    try {
+      state.configuration = (await query({action: "app-config"})).data;
+      shell(campaignsContent());
+      bindCampaignActions();
+    } catch (error) { showToast(messageFor(error), "error"); }
+  } else bindCampaignActions();
+}
+
+function audienceFields(prefix) {
+  return `<label>Hedef kitle<select name="audience" data-audience-select="${prefix}"><option value="all">Tüm kullanıcılar</option><option value="single">Tek kullanıcı</option></select></label><label class="hidden" data-audience-phone="${prefix}">Telefon numarası<input name="phone" inputmode="tel" placeholder="05__ ___ __ __" /></label>`;
+}
+
+function campaignsContent() {
+  const configuration = state.configuration || {};
+  return `<section class="page-intro"><div><p class="eyebrow">BÜYÜME VE DENEYLER</p><h2>Ayarlar ve kampanyalar</h2><p class="muted">Yeni kullanıcı deneyimini ve sunucu taraflı promosyonları tek yerden yönetin.</p></div></section>
+    <div class="management-grid campaign-grid">
+      <section class="panel span-two"><div class="panel-heading"><div><p class="eyebrow">UYGULAMA AYARLARI</p><h3>Kayıt sonrası deneyim</h3></div><span class="panel-symbol blue">⚙</span></div><form id="app-config-form" class="form-grid"><label>Yeni kullanıcı başlangıç kredisi<input name="signupCreditAmount" type="number" min="0" max="100" step="1" value="${Number(configuration.signupCreditAmount ?? 1)}" required /></label><label class="toggle-row"><span><strong>Giriş sonrası paywall</strong><small>Premium olmayan kullanıcıya kayıt tamamlanınca gösterilir.</small></span><input name="showPostLoginPaywall" type="checkbox" ${configuration.showPostLoginPaywall !== false ? "checked" : ""} /><i></i></label><div class="form-actions span-two"><button class="button button-primary">Ayarları kaydet</button></div></form><p class="fineprint">Başlangıç kredisi her doğrulanmış numaraya yalnızca bir kez verilir. Miktar değişikliği daha önce hediyesini alan hesapları etkilemez.</p></section>
+      <section class="panel"><div class="panel-heading"><div><p class="eyebrow">KREDİ KAMPANYASI</p><h3>Promosyon kredisi gönder</h3></div><span class="panel-symbol cyan">◆</span></div><form id="bulk-credit-form" class="stack">${audienceFields("credit")}<label>Kredi miktarı<input name="amount" type="number" min="1" max="1000" value="1" required /></label><button class="button button-primary">Kredi gönder</button></form></section>
+      <section class="panel"><div class="panel-heading"><div><p class="eyebrow">PREMIUM KAMPANYASI</p><h3>Promosyon Premium gönder</h3></div><span class="panel-symbol violet">★</span></div><form id="bulk-premium-form" class="stack">${audienceFields("premium")}<label>Süre<select name="duration"><option value="7-days">7 gün</option><option value="30-days">30 gün</option><option value="lifetime">Süresiz</option></select></label><button class="button button-primary">Premium gönder</button></form></section>
+      <section class="panel span-two"><div class="panel-heading"><div><p class="eyebrow">BİLDİRİM</p><h3>Push bildirimi gönder</h3></div><span class="panel-symbol green">↗</span></div><form id="notification-form" class="form-grid">${audienceFields("notification")}<label class="span-two">Başlık<input name="title" maxlength="80" placeholder="WhoCall’dan haber var" required /></label><label class="span-two">Mesaj<textarea name="body" maxlength="240" placeholder="Bildirim metni" required></textarea></label><div class="form-actions span-two"><button class="button button-primary">Bildirimi gönder</button></div></form><p class="fineprint">Yalnızca bildirim izni veren ve geçerli cihaz anahtarı bulunan kullanıcılara ulaşır.</p></section>
+    </div>`;
+}
+
+function bindAudienceFields() {
+  document.querySelectorAll("[data-audience-select]").forEach((select) => {
+    const phone = document.querySelector(`[data-audience-phone="${select.dataset.audienceSelect}"]`);
+    const sync = () => {
+      phone.classList.toggle("hidden", select.value !== "single");
+      phone.querySelector("input").required = select.value === "single";
+    };
+    select.addEventListener("change", sync);
+    sync();
+  });
+}
+
+function campaignPayload(form) {
+  const data = new FormData(form);
+  return {audience: data.get("audience"), phone: data.get("phone") || null};
+}
+
+function bindCampaignActions() {
+  bindAudienceFields();
+  document.querySelector("#app-config-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    try {
+      state.configuration = (await mutate({action: "set-app-config", signupCreditAmount: Number(data.get("signupCreditAmount")), showPostLoginPaywall: data.get("showPostLoginPaywall") === "on"})).data;
+      showToast("Uygulama ayarları kaydedildi.");
+      shell(campaignsContent()); bindCampaignActions();
+    } catch (error) { showToast(messageFor(error), "error"); }
+  });
+  document.querySelector("#bulk-credit-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const payload = campaignPayload(form); const amount = Number(data.get("amount"));
+    if (!await confirmAction("Kredi kampanyasını gönder", `${payload.audience === "all" ? "Tüm kullanıcılara" : "Seçilen kullanıcıya"} ${amount} kredi gönderilecek. Devam edilsin mi?`)) return;
+    try { const result = (await mutate({action: "bulk-adjust-credits", ...payload, amount})).data; showToast(`${result.affectedAccounts} hesaba kredi gönderildi.`); }
+    catch (error) { showToast(messageFor(error), "error"); }
+  });
+  document.querySelector("#bulk-premium-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const payload = campaignPayload(form); const duration = data.get("duration");
+    if (!await confirmAction("Premium kampanyasını gönder", `${payload.audience === "all" ? "Tüm kullanıcılara" : "Seçilen kullanıcıya"} promosyon Premium tanımlanacak. Devam edilsin mi?`)) return;
+    try { const result = (await mutate({action: "bulk-set-premium", ...payload, duration})).data; showToast(`${result.affectedAccounts} hesaba Premium gönderildi.`); }
+    catch (error) { showToast(messageFor(error), "error"); }
+  });
+  document.querySelector("#notification-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const payload = campaignPayload(form);
+    if (!await confirmAction("Push bildirimini gönder", `${payload.audience === "all" ? "Tüm uygun cihazlara" : "Seçilen kullanıcıya"} bildirim gönderilecek. Bu işlem geri alınamaz.`)) return;
+    try { const result = (await mutate({action: "send-notification", ...payload, title: data.get("title"), body: data.get("body")})).data; showToast(`${result.successCount} cihaza bildirim gönderildi${result.failureCount ? `, ${result.failureCount} başarısız` : ""}.`); }
+    catch (error) { showToast(messageFor(error), "error"); }
+  });
 }
 
 async function renderAudits() {
@@ -512,6 +665,7 @@ function renderRoute() {
   if (state.route === "number") return renderNumber();
   if (state.route === "users") return renderUsers();
   if (state.route === "reports") return renderReports();
+  if (state.route === "campaigns") return renderCampaigns();
   if (state.route === "audits") return renderAudits();
   return renderOverview();
 }
@@ -521,7 +675,7 @@ async function bootstrap() {
     root.innerHTML = `<main class="fatal"><span class="brand-mark">W</span><h1>Yapılandırma eksik</h1><p>Panelin Firebase web ayarları Railway ortamına eklenmemiş.</p></main>`;
     return;
   }
-  state.route = ["overview", "number", "users", "reports", "audits"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview";
+  state.route = ["overview", "number", "users", "reports", "campaigns", "audits"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview";
   onAuthStateChanged(auth, async (user) => {
     if (!user) { state.user = null; loginView(); return; }
     try {

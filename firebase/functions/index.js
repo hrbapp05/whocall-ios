@@ -3,6 +3,7 @@
 const {initializeApp} = require("firebase-admin/app");
 const {FieldValue, getFirestore, Timestamp} = require("firebase-admin/firestore");
 const {getAuth} = require("firebase-admin/auth");
+const {getMessaging} = require("firebase-admin/messaging");
 const logger = require("firebase-functions/logger");
 const {defineSecret} = require("firebase-functions/params");
 const {HttpsError, onCall} = require("firebase-functions/v2/https");
@@ -15,6 +16,7 @@ const {
   normalizeCommunityContentType,
   normalizeCommunityModerationReason,
   normalizeLegalAcceptance,
+  maskedPhone,
   normalizeName,
   normalizePhone,
   publicProfileFromAuthUser,
@@ -161,15 +163,92 @@ exports.getAccountAccessState = onCall(callableOptions, async (request) => {
   await enforceRateLimit(request.auth.uid, "account-access-read", 30, secret);
   const reference = db.collection("accountBenefits")
       .doc(`v1_${keyedDigest(phone, secret)}`);
-  const snapshot = await reference.get();
-  const data = snapshot.data() || {};
+  const configurationReference = db.collection("appConfiguration").doc("public");
+  const data = await db.runTransaction(async (transaction) => {
+    const [snapshot, configuration] = await transaction.getAll(reference, configurationReference);
+    const current = snapshot.data() || {};
+    const configuredAmount = Number(configuration.data() && configuration.data().signupCreditAmount);
+    const signupCreditAmount = Number.isSafeInteger(configuredAmount) &&
+      configuredAmount >= 0 && configuredAmount <= 100 ? configuredAmount : 1;
+    const showPostLoginPaywall = configuration.data() &&
+      typeof configuration.data().showPostLoginPaywall === "boolean" ?
+      configuration.data().showPostLoginPaywall : true;
+    if (current.welcomeCreditGranted === true) {
+      return {...current, showPostLoginPaywall};
+    }
+    const promotionalCreditBalance = Math.max(
+        0,
+        Number(current.promotionalCreditBalance || 0),
+    ) + signupCreditAmount;
+    transaction.set(reference, {
+      phoneMasked: `+90 5** *** ** ${phone.slice(-2)}`,
+      promotionalCreditBalance,
+      welcomeCreditGranted: true,
+      welcomeCreditAmount: signupCreditAmount,
+      welcomeCreditGrantedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    return {...current, promotionalCreditBalance, showPostLoginPaywall};
+  });
   return {
     promotionalPremiumActive: isPremiumActive(data),
     promotionalPremiumExpiresAt: data.promotionalPremiumExpiresAt &&
       typeof data.promotionalPremiumExpiresAt.toDate === "function" ?
       data.promotionalPremiumExpiresAt.toDate().toISOString() : null,
     promotionalCreditBalance: Math.max(0, Number(data.promotionalCreditBalance || 0)),
+    showPostLoginPaywall: data.showPostLoginPaywall !== false,
   };
+});
+
+// App Store consumable credits are maintained by the signed-in iOS account.
+// This snapshot is for admin reporting only: access checks and deductions never
+// trust these client-reported fields.
+exports.syncPurchaseSnapshot = onCall(callableOptions, async (request) => {
+  const phone = await authenticatedPhone(request);
+  const purchasedCreditBalance = Number(
+      request.data && request.data.purchasedCreditBalance,
+  );
+  const revenueCatPremiumActive = request.data && request.data.revenueCatPremiumActive;
+  if (!Number.isSafeInteger(purchasedCreditBalance) ||
+      purchasedCreditBalance < 0 || purchasedCreditBalance > 100_000 ||
+      typeof revenueCatPremiumActive !== "boolean") {
+    throw new HttpsError("invalid-argument", "Geçerli satın alma özeti zorunludur.");
+  }
+
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "purchase-snapshot-sync", 60, secret);
+  const reference = db.collection("accountBenefits")
+      .doc(`v1_${keyedDigest(phone, secret)}`);
+  await reference.set({
+    revenueCatAppUserID: request.auth.uid,
+    reportedPurchasedCreditBalance: purchasedCreditBalance,
+    reportedRevenueCatPremiumActive: revenueCatPremiumActive,
+    purchaseSnapshotUpdatedAt: FieldValue.serverTimestamp(),
+    phoneMasked: maskedPhone(phone),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
+  return {synchronized: true};
+});
+
+exports.registerPushToken = onCall(callableOptions, async (request) => {
+  await authenticatedPhone(request);
+  const token = request.data && request.data.token;
+  if (typeof token !== "string" || token.length < 20 || token.length > 4096) {
+    throw new HttpsError("invalid-argument", "Geçerli bildirim cihaz anahtarı zorunludur.");
+  }
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "push-token-register", 10, secret);
+  const tokenID = `v1_${keyedDigest(token, secret)}`;
+  // A device token has a single current owner. Keeping tokens in a top-level
+  // collection lets a later verified login atomically replace that owner,
+  // preventing one device from receiving another account's targeted message.
+  await db.collection("pushDeviceTokens").doc(tokenID).set({
+    token,
+    uid: request.auth.uid,
+    platform: "ios",
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
+  return {registered: true};
 });
 
 exports.consumePromotionalCredit = onCall(callableOptions, async (request) => {
@@ -378,6 +457,9 @@ exports.deleteWhoCallAccount = onCall(accountDeletionOptions, async (request) =>
         }, {merge: true});
       },
   );
+  await deleteQueryInBatches(
+      db.collection("pushDeviceTokens").where("uid", "==", uid),
+  );
 
   const batch = db.batch();
   batch.delete(db.collection("userLegalAcceptances").doc(uid));
@@ -387,7 +469,8 @@ exports.deleteWhoCallAccount = onCall(accountDeletionOptions, async (request) =>
     "community-comment", "community-tag", "community-report",
     "community-content-report", "community-user-block",
     "legal-acceptance", "account-delete", "account-access-read",
-    "account-credit-consume",
+    "account-credit-consume", "purchase-snapshot-sync",
+    "push-token-register",
   ];
   for (const operation of rateLimitOperations) {
     const id = keyedDigest(`${uid}:${operation}`, secret);
@@ -564,7 +647,7 @@ exports.addNumberTag = onCall(callableOptions, async (request) => {
 });
 
 exports.reportNumber = onCall(callableOptions, async (request) => {
-  await authenticatedPhone(request);
+  const reporterPhone = await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   const reason = cleanCommunityText(request.data && request.data.reason, 2, 80);
   const allowedReasons = new Set([
@@ -586,6 +669,8 @@ exports.reportNumber = onCall(callableOptions, async (request) => {
     const currentCount = Math.max(0, Number(community.data() && community.data().reportCount || 0));
     transaction.set(reportReference, {
       uidHash: reportID,
+      reporterPhoneMasked: maskedPhone(reporterPhone),
+      targetPhoneMasked: maskedPhone(number),
       reason,
       status: "pending",
       createdAt: report.exists ? report.data().createdAt : FieldValue.serverTimestamp(),
@@ -607,7 +692,7 @@ exports.reportNumber = onCall(callableOptions, async (request) => {
 });
 
 exports.reportCommunityContent = onCall(callableOptions, async (request) => {
-  await authenticatedPhone(request);
+  const reporterPhone = await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   const contentType = normalizeCommunityContentType(
       request.data && request.data.contentType,
@@ -672,6 +757,8 @@ exports.reportCommunityContent = onCall(callableOptions, async (request) => {
   }, {merge: true});
   batch.set(reportReference, {
     reporterUIDHash: keyedDigest(request.auth.uid, secret),
+    reporterPhoneMasked: maskedPhone(reporterPhone),
+    targetPhoneMasked: maskedPhone(number),
     authorID,
     authorUID,
     communityID: reference.id,
@@ -701,7 +788,7 @@ exports.reportCommunityContent = onCall(callableOptions, async (request) => {
 });
 
 exports.blockCommunityAuthor = onCall(callableOptions, async (request) => {
-  await authenticatedPhone(request);
+  const reporterPhone = await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   const commentID = request.data && request.data.commentID;
   const reason = normalizeCommunityModerationReason(request.data && request.data.reason);
@@ -737,6 +824,8 @@ exports.blockCommunityAuthor = onCall(callableOptions, async (request) => {
   }, {merge: true});
   batch.set(reportReference, {
     reporterUIDHash: keyedDigest(request.auth.uid, secret),
+    reporterPhoneMasked: maskedPhone(reporterPhone),
+    targetPhoneMasked: maskedPhone(number),
     authorID,
     authorUID,
     communityID: reference.id,
@@ -825,6 +914,7 @@ exports.moderateCommunityReport = onCall(
 const adminService = createAdminService({
   db,
   auth: getAuth(),
+  messaging: getMessaging(),
   FieldValue,
   Timestamp,
   HttpsError,

@@ -46,12 +46,31 @@ struct ProfileCompletionView: View {
                     .padding(.top, 8)
 
                 VStack(spacing: 14) {
-                    profileField("Adınız", text: $firstName, contentType: .givenName, field: .firstName)
-                    profileField("Soyadınız", text: $lastName, contentType: .familyName, field: .lastName)
+                    profileField(
+                        "Adınız",
+                        text: $firstName,
+                        contentType: .givenName,
+                        field: .firstName,
+                        validationMessage: visibleValidationMessage(for: firstName, field: .firstName)
+                    )
+                    profileField(
+                        "Soyadınız",
+                        text: $lastName,
+                        contentType: .familyName,
+                        field: .lastName,
+                        validationMessage: visibleValidationMessage(for: lastName, field: .lastName)
+                    )
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 28)
                 .figmaEntrance(delay: 0.12, distance: 14)
+
+                Text("Ad ve soyad alanları zorunludur. Lütfen gerçek bilgilerinizi girin.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 30)
+                    .padding(.top, 10)
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -89,51 +108,76 @@ struct ProfileCompletionView: View {
     }
 
     private var isValid: Bool {
-        !normalizedFirstName.isEmpty && !normalizedLastName.isEmpty
-    }
-
-    private var normalizedFirstName: String {
-        firstName.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var normalizedLastName: String {
-        lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        ProfileNameValidator.validated(firstName, field: .firstName) != nil &&
+            ProfileNameValidator.validated(lastName, field: .lastName) != nil
     }
 
     private func profileField(
         _ title: String,
         text: Binding<String>,
         contentType: UITextContentType,
-        field: Field
+        field: Field,
+        validationMessage: String?
     ) -> some View {
-        TextField(title, text: text)
-            .textContentType(contentType)
-            .textInputAutocapitalization(.words)
-            .autocorrectionDisabled()
-            .focused($focusedField, equals: field)
-            .submitLabel(field == .firstName ? .next : .done)
-            .onSubmit {
-                focusedField = field == .firstName ? .lastName : nil
+        VStack(alignment: .leading, spacing: 6) {
+            TextField(title, text: text)
+                .textContentType(contentType)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .focused($focusedField, equals: field)
+                .submitLabel(field == .firstName ? .next : .done)
+                .onSubmit {
+                    focusedField = field == .firstName ? .lastName : nil
+                }
+                .onChange(of: text.wrappedValue) { _, value in
+                    if value.count > 40 {
+                        text.wrappedValue = String(value.prefix(40))
+                    }
+                    errorMessage = nil
+                }
+                .padding(.horizontal, 18)
+                .frame(height: 56)
+                .background(.white, in: .rect(cornerRadius: 16))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            validationMessage != nil ? .red.opacity(0.7) :
+                                focusedField == field ? .black : Color(.separator).opacity(0.25),
+                            lineWidth: 1
+                        )
+                }
+
+            if let validationMessage {
+                Text(validationMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 18)
-            .frame(height: 56)
-            .background(.white, in: .rect(cornerRadius: 16))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(focusedField == field ? .black : Color(.separator).opacity(0.25), lineWidth: 1)
-            }
+        }
+    }
+
+    private func visibleValidationMessage(for value: String, field: Field) -> String? {
+        guard !value.isEmpty else { return nil }
+        return ProfileNameValidator.validationMessage(
+            for: value,
+            field: field == .firstName ? .firstName : .lastName
+        )
     }
 
     @MainActor
     private func save() async {
-        guard isValid else { return }
+        guard let validatedFirstName = ProfileNameValidator.validated(firstName, field: .firstName),
+              let validatedLastName = ProfileNameValidator.validated(lastName, field: .lastName) else {
+            errorMessage = "Ad ve soyad alanlarını geçerli ve eksiksiz doldurun."
+            return
+        }
         isSaving = true
         defer { isSaving = false }
 
         do {
             try await profileService.updateProfile(
-                firstName: normalizedFirstName,
-                lastName: normalizedLastName
+                firstName: validatedFirstName,
+                lastName: validatedLastName
             )
             onComplete()
         } catch {

@@ -2,7 +2,42 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const {isMissingIndexError, newestFirst} = require("../admin");
+const {
+  DEFAULT_APP_CONFIGURATION,
+  accountPurchaseSummary,
+  isMissingIndexError,
+  newestFirst,
+  publicAppConfiguration,
+} = require("../admin");
+
+test("combines purchased and promotional credits without treating the snapshot as an entitlement", () => {
+  const updatedAt = new Date("2026-08-30T12:00:00.000Z");
+  const summary = accountPurchaseSummary({
+    revenueCatAppUserID: "firebase-user-123",
+    reportedPurchasedCreditBalance: 23,
+    promotionalCreditBalance: 2,
+    reportedRevenueCatPremiumActive: false,
+    promotionalPremiumActive: true,
+    purchaseSnapshotUpdatedAt: {toDate: () => updatedAt},
+  });
+  assert.deepEqual(summary, {
+    revenueCatAppUserID: "firebase-user-123",
+    revenueCatPremiumActive: false,
+    promotionalPremiumActive: true,
+    premiumActive: true,
+    purchasedCreditBalance: 23,
+    promotionalCreditBalance: 2,
+    totalCreditBalance: 25,
+    purchaseSnapshotUpdatedAt: updatedAt.toISOString(),
+  });
+});
+
+test("uses the Firebase UID as the RevenueCat search ID before the first device snapshot", () => {
+  const summary = accountPurchaseSummary({}, "firebase-fallback");
+  assert.equal(summary.revenueCatAppUserID, "firebase-fallback");
+  assert.equal(summary.totalCreditBalance, 0);
+  assert.equal(summary.premiumActive, false);
+});
 
 test("recognizes the production Firestore missing-index response", () => {
   assert.equal(isMissingIndexError({
@@ -24,4 +59,19 @@ test("sorts report records by their newest available timestamp", () => {
     "created",
     "older",
   ]);
+});
+
+test("uses safe public app configuration defaults", () => {
+  assert.deepEqual(publicAppConfiguration(), DEFAULT_APP_CONFIGURATION);
+  assert.deepEqual(publicAppConfiguration({
+    signupCreditAmount: 5,
+    showPostLoginPaywall: false,
+  }), {
+    signupCreditAmount: 5,
+    showPostLoginPaywall: false,
+  });
+  assert.deepEqual(publicAppConfiguration({
+    signupCreditAmount: 500,
+    showPostLoginPaywall: "no",
+  }), DEFAULT_APP_CONFIGURATION);
 });

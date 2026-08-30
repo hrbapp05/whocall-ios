@@ -10,6 +10,7 @@
 		B000000000000000000000A3 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000A5 /* FirebaseAuth */; };
 		B000000000000000000000A6 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000A7 /* FirebaseFunctions */; };
 		B000000000000000000000A9 /* FacebookCore in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000AA /* FacebookCore */; };
+		B000000000000000000000AC /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = B000000000000000000000AB /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,7 +56,7 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		B00000000000000000000020 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000A0 /* RevenueCat in Frameworks */, B000000000000000000000A3 /* FirebaseAuth in Frameworks */, B000000000000000000000A6 /* FirebaseFunctions in Frameworks */, B000000000000000000000A9 /* FacebookCore in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
+		B00000000000000000000020 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000A0 /* RevenueCat in Frameworks */, B000000000000000000000A3 /* FirebaseAuth in Frameworks */, B000000000000000000000A6 /* FirebaseFunctions in Frameworks */, B000000000000000000000A9 /* FacebookCore in Frameworks */, B000000000000000000000AC /* FirebaseMessaging in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
 		B00000000000000000000021 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
@@ -94,7 +95,7 @@
 			dependencies = ();
 			fileSystemSynchronizedGroups = (B00000000000000000000010 /* Whocall */);
 			name = Whocall;
-			packageProductDependencies = (B000000000000000000000A2 /* RevenueCat */, B000000000000000000000A5 /* FirebaseAuth */, B000000000000000000000A7 /* FirebaseFunctions */, B000000000000000000000AA /* FacebookCore */,);
+			packageProductDependencies = (B000000000000000000000A2 /* RevenueCat */, B000000000000000000000A5 /* FirebaseAuth */, B000000000000000000000A7 /* FirebaseFunctions */, B000000000000000000000AA /* FacebookCore */, B000000000000000000000AB /* FirebaseMessaging */,);
 			productName = Whocall;
 			productReference = B00000000000000000000001 /* Whocall.app */;
 			productType = "com.apple.product-type.application";
@@ -333,6 +334,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B000000000000000000000A8 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
 			productName = FacebookCore;
+		};
+		B000000000000000000000AB /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B000000000000000000000A4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -34,4 +34,25 @@ struct PostAuthenticationFlowTests {
         #expect(!presentation.showsPaywall)
         #expect(presentation.requiresProfileCompletion)
     }
+
+    @Test func remotelyDisabledPaywallLetsCompletedFreeAccountEnterDirectly() {
+        let presentation = PostAuthenticationPresentation.make(
+            requiresProfileCompletion: false,
+            isPremium: false,
+            showPostLoginPaywall: false
+        )
+
+        #expect(presentation == nil)
+    }
+
+    @Test func remotelyDisabledPaywallStillCompletesMissingProfile() throws {
+        let presentation = try #require(PostAuthenticationPresentation.make(
+            requiresProfileCompletion: true,
+            isPremium: false,
+            showPostLoginPaywall: false
+        ))
+
+        #expect(!presentation.showsPaywall)
+        #expect(presentation.requiresProfileCompletion)
+    }
 }

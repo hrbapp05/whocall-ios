@@ -1,12 +1,17 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 
 #if canImport(FirebaseAuth)
 @preconcurrency import FirebaseAuth
 import FirebaseCore
+import FirebaseMessaging
 #endif
 
-final class AppDelegate: NSObject, UIApplicationDelegate {
+final class AppDelegate: NSObject,
+    UIApplicationDelegate,
+    @preconcurrency UNUserNotificationCenterDelegate,
+    @preconcurrency MessagingDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -22,6 +27,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         }
         if FirebaseApp.app() != nil {
             Auth.auth().languageCode = "tr"
+            Messaging.messaging().delegate = self
+            UNUserNotificationCenter.current().delegate = self
             application.registerForRemoteNotifications()
         }
 #endif
@@ -43,7 +50,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 #else
         Auth.auth().setAPNSToken(deviceToken, type: .prod)
 #endif
+        Messaging.messaging().apnsToken = deviceToken
 #endif
+    }
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let fcmToken else { return }
+        Task { @MainActor in
+            await NotificationRegistrationService.shared.register(token: fcmToken)
+        }
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .badge, .sound]
     }
 
     func application(

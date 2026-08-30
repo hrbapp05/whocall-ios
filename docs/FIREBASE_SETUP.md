@@ -16,6 +16,8 @@ WhoCall, Firebase Authentication'ın telefon sağlayıcısını kullanır. Uygul
 - Release build `aps-environment=production`, Debug build `aps-environment=development` kullanır.
 - Firebase Console > Project settings > Cloud Messaging bölümüne App Store Connect ekibinin APNs Authentication Key dosyasını, Key ID ve Team ID ile yükleyin.
 - `FirebaseAppDelegateProxyEnabled` kapalı olduğu için APNs token'ı ve bildirim callback'leri `AppDelegate` tarafından Firebase Auth'a açıkça iletilir.
+- Kullanıcı bildirim izni verdiğinde FCM cihaz anahtarı `registerPushToken` callable işleviyle yalnızca doğrulanmış hesaba bağlanır. Aynı cihazda başka hesapla giriş yapılırsa anahtarın sahibi değiştirilir; hesap silinince anahtar da silinir.
+- `syncPurchaseSnapshot` callable işlevi, doğrulanmış hesabın App Store kredi bakiyesini ve RevenueCat Premium durumunu yönetim panelinde raporlamak için eşitler. Bu istemci özeti yetkilendirme veya kredi tüketimi için kullanılmaz.
 
 ## reCAPTCHA fallback
 

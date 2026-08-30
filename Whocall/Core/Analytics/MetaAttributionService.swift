@@ -76,6 +76,46 @@ final class MetaAttributionService {
         synchronizeCurrentAuthorization(force: false)
     }
 
+    func trackPaywallPresented(section: String) {
+#if canImport(FacebookCore)
+        guard canLogFunnelEvents else { return }
+        AppEvents.shared.logEvent(.viewedContent, parameters: [
+            .contentType: "paywall",
+            .contentID: section
+        ])
+#endif
+    }
+
+    func trackPaywallDismissed(section: String) {
+#if canImport(FacebookCore)
+        guard canLogFunnelEvents else { return }
+        AppEvents.shared.logEvent(
+            AppEvents.Name("whocall_paywall_dismissed"),
+            parameters: [
+                .contentType: "paywall",
+                .contentID: section
+            ]
+        )
+#endif
+    }
+
+    func trackCheckoutStarted(productID: String, productType: String) {
+#if canImport(FacebookCore)
+        guard canLogFunnelEvents else { return }
+        AppEvents.shared.logEvent(.initiatedCheckout, parameters: [
+            .contentID: productID,
+            .contentType: productType,
+            .numItems: 1
+        ])
+#endif
+    }
+
+#if canImport(FacebookCore)
+    private var canLogFunnelEvents: Bool {
+        isMetaSDKConfigured && ATTrackingManager.trackingAuthorizationStatus == .authorized
+    }
+#endif
+
     private func synchronizeCurrentAuthorization(force: Bool) {
 #if canImport(FacebookCore)
         guard isMetaSDKConfigured else { return }

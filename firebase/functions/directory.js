@@ -2,7 +2,7 @@
 
 const {createHmac} = require("node:crypto");
 
-const NAME_PATTERN = /^[\p{L}\p{M}'’.\-]+(?: [\p{L}\p{M}'’.\-]+)*$/u;
+const NAME_PATTERN = /^[\p{L}\p{M}]+(?:['’\-][\p{L}\p{M}]+)*(?: [\p{L}\p{M}]+(?:['’\-][\p{L}\p{M}]+)*)*$/u;
 const CURRENT_TERMS_VERSION = "2026-08-19.1";
 const CURRENT_PRIVACY_NOTICE_VERSION = "2026-08-12.1";
 
@@ -19,6 +19,13 @@ const BLOCKED_COMMUNITY_TERMS = [
   "şerefsiz", "serefsiz", "gerizekalı", "gerizekali", "salak", "aptal", "ibne",
   "kahpe", "pezevenk", "göt", "got", "bok", "mal",
 ];
+
+const RESERVED_PROFILE_NAME_TERMS = new Set([
+  "admin", "apple", "facebook", "google", "instagram", "meta", "tiktok", "whocall",
+  "ad", "isim", "name", "soyad", "soyisim", "surname", "test", "deneme", "demo",
+  "fake", "user", "kullanici", "unknown", "bilinmiyor", "yok", "yoktur",
+  "abc", "abcd", "asdf", "asdfgh", "qwerty", "qwertyui", "xyz", "zxcv", "zxcvb",
+]);
 
 const ADMIN_TRUST_LEVELS = ["high", "medium", "risky"];
 const ADMIN_PREMIUM_DURATIONS = ["7-days", "30-days", "lifetime", "revoke"];
@@ -38,6 +45,12 @@ function normalizeName(value) {
   const normalized = value.trim().replace(/\s+/g, " ").normalize("NFC");
   const length = Array.from(normalized).length;
   if (length < 2 || length > 40 || !NAME_PATTERN.test(normalized)) return null;
+  const moderationValue = normalizeForModeration(normalized);
+  const words = moderationValue.split(/\s+/).filter(Boolean);
+  const compact = words.join("");
+  if (words.some((word) => RESERVED_PROFILE_NAME_TERMS.has(word)) ||
+      containsBlockedCommunityLanguage(normalized) ||
+      new Set(Array.from(compact)).size < 2 || /(.)\1\1/u.test(compact)) return null;
   return normalized;
 }
 
@@ -63,6 +76,11 @@ function publicProfileFromAuthUser(user, phoneNumber) {
 }
 
 function communityAuthor(value) {
+  if (typeof value === "string") {
+    const masked = /^(.+) ([\p{L}\p{M}])\.$/u.exec(value.trim());
+    const firstName = masked && normalizeName(masked[1]);
+    if (firstName) return `${firstName} ${masked[2].toLocaleUpperCase("tr-TR")}.`;
+  }
   const names = namesFromDisplayName(value);
   if (!names) return null;
   const surnameInitial = Array.from(names.lastName)[0];

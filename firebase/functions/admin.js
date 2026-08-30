@@ -9,6 +9,7 @@ const {
   normalizeCreditAdjustment,
   normalizeName,
   normalizePhone,
+  namesFromDisplayName,
 } = require("./directory");
 
 const PHONE_ID_PATTERN = /^v1_[a-f0-9]{64}$/;
@@ -30,7 +31,16 @@ const ADMIN_ACTIONS = new Set([
   "delete-comment",
   "resolve-number-report",
   "set-user-disabled",
+  "set-app-config",
+  "bulk-adjust-credits",
+  "bulk-set-premium",
+  "send-notification",
 ]);
+
+const DEFAULT_APP_CONFIGURATION = Object.freeze({
+  signupCreditAmount: 1,
+  showPostLoginPaywall: true,
+});
 
 function cleanText(value, minLength, maxLength) {
   if (typeof value !== "string") return null;
@@ -82,6 +92,17 @@ function publicProfile(profile) {
   };
 }
 
+function publicAppConfiguration(data) {
+  const signupCreditAmount = Number(data && data.signupCreditAmount);
+  return {
+    signupCreditAmount: Number.isSafeInteger(signupCreditAmount) &&
+      signupCreditAmount >= 0 && signupCreditAmount <= 100 ?
+      signupCreditAmount : DEFAULT_APP_CONFIGURATION.signupCreditAmount,
+    showPostLoginPaywall: data && typeof data.showPostLoginPaywall === "boolean" ?
+      data.showPostLoginPaywall : DEFAULT_APP_CONFIGURATION.showPostLoginPaywall,
+  };
+}
+
 function premiumExpiresAt(duration, Timestamp) {
   if (duration === "lifetime" || duration === "revoke") return null;
   const days = duration === "7-days" ? 7 : 30;
@@ -94,7 +115,31 @@ function isPremiumActive(data) {
   return !expiresAt || expiresAt.toMillis() > Date.now();
 }
 
-function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKey}) {
+function accountPurchaseSummary(data, fallbackRevenueCatAppUserID = null) {
+  const benefit = data || {};
+  const reportedPurchasedCredits = Number(benefit.reportedPurchasedCreditBalance);
+  const promotionalCredits = Number(benefit.promotionalCreditBalance);
+  const purchasedCreditBalance = Number.isSafeInteger(reportedPurchasedCredits) ?
+    Math.max(0, reportedPurchasedCredits) : 0;
+  const promotionalCreditBalance = Number.isSafeInteger(promotionalCredits) ?
+    Math.max(0, promotionalCredits) : 0;
+  const promotionalPremiumActive = isPremiumActive(benefit);
+  const revenueCatPremiumActive = benefit.reportedRevenueCatPremiumActive === true;
+  const storedRevenueCatID = typeof benefit.revenueCatAppUserID === "string" &&
+    USER_ID_PATTERN.test(benefit.revenueCatAppUserID) ? benefit.revenueCatAppUserID : null;
+  return {
+    revenueCatAppUserID: storedRevenueCatID || fallbackRevenueCatAppUserID,
+    revenueCatPremiumActive,
+    promotionalPremiumActive,
+    premiumActive: revenueCatPremiumActive || promotionalPremiumActive,
+    purchasedCreditBalance,
+    promotionalCreditBalance,
+    totalCreditBalance: purchasedCreditBalance + promotionalCreditBalance,
+    purchaseSnapshotUpdatedAt: serializeTimestamp(benefit.purchaseSnapshotUpdatedAt),
+  };
+}
+
+function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsError, hmacKey}) {
   function requireAdmin(request) {
     if (!request.auth || request.auth.token.whoCallAdmin !== true) {
       throw new HttpsError("permission-denied", "WhoCall yönetici yetkisi gerekli.");
@@ -143,6 +188,37 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
     };
   }
 
+  async function appConfiguration() {
+    const snapshot = await db.collection("appConfiguration").doc("public").get();
+    return publicAppConfiguration(snapshot.data());
+  }
+
+  async function allPhoneUsers() {
+    const entries = [];
+    let pageToken;
+    do {
+      const page = await auth.listUsers(1000, pageToken);
+      for (const user of page.users) {
+        const phone = normalizePhone(user.phoneNumber);
+        if (phone) entries.push({user, phone});
+      }
+      pageToken = page.pageToken;
+    } while (pageToken);
+    return entries;
+  }
+
+  async function reportIdentityMaps() {
+    const users = await allPhoneUsers();
+    const phoneByUIDHash = new Map();
+    const phoneByCommunityID = new Map();
+    for (const {user, phone} of users) {
+      const fullPhone = `+${phone}`;
+      phoneByUIDHash.set(keyedDigest(user.uid, hmacKey.value()), fullPhone);
+      phoneByCommunityID.set(`v1_${keyedDigest(phone, hmacKey.value())}`, fullPhone);
+    }
+    return {phoneByUIDHash, phoneByCommunityID};
+  }
+
   async function phoneDetails(rawPhone) {
     const context = contextForPhone(rawPhone);
     const [profile, exclusion, benefits, community, comments, numberReports] = await Promise.all([
@@ -158,25 +234,35 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
       const user = await auth.getUserByPhoneNumber(`+${context.phone}`);
       authUser = {
         registered: true,
+        uid: user.uid,
         disabled: user.disabled,
         displayName: user.displayName || null,
       };
     } catch (error) {
       if (!error || error.code !== "auth/user-not-found") throw error;
-      authUser = {registered: false, disabled: false, displayName: null};
+      authUser = {registered: false, uid: null, disabled: false, displayName: null};
     }
     const benefitData = benefits.data() || {};
     const communityData = community.data() || {};
+    const authNames = namesFromDisplayName(authUser.displayName);
+    const effectiveProfile = profile.exists ? publicProfile(profile.data()) : authNames ? {
+      firstName: authNames.firstName,
+      lastName: authNames.lastName,
+      displayName: `${authNames.firstName} ${authNames.lastName}`,
+      isVisible: true,
+      source: "firebase-auth",
+      hasOwner: true,
+      updatedAt: null,
+    } : null;
     return {
       phone: context.masked,
       recordID: context.id,
-      profile: profile.exists ? publicProfile(profile.data()) : null,
+      profile: effectiveProfile,
       isExcluded: exclusion.exists && exclusion.data().active === true,
       account: {
         ...authUser,
-        promotionalPremiumActive: isPremiumActive(benefitData),
+        ...accountPurchaseSummary(benefitData, authUser.uid),
         promotionalPremiumExpiresAt: serializeTimestamp(benefitData.promotionalPremiumExpiresAt),
-        promotionalCreditBalance: Math.max(0, Number(benefitData.promotionalCreditBalance || 0)),
       },
       community: {
         trustOverride: communityData.trustOverride || null,
@@ -194,6 +280,7 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
           id: report.id,
           reason: report.reason || "Diğer",
           status: report.status || "pending",
+          reporterPhoneMasked: report.reporterPhoneMasked || null,
           createdAt: report.createdAt,
           updatedAt: report.updatedAt,
           decision: report.decision || null,
@@ -214,6 +301,17 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
       if (!isMissingIndexError(error)) throw error;
       numberReports = await db.collectionGroup("reports").limit(safeLimit).get();
     }
+    const {phoneByUIDHash, phoneByCommunityID} = await reportIdentityMaps();
+    const communityIDs = new Set([
+      ...content.docs.map((document) => document.data().communityID),
+      ...numberReports.docs.map((document) => document.ref.parent.parent.id),
+    ].filter(Boolean));
+    const communitySnapshots = communityIDs.size ?
+      await db.getAll(...[...communityIDs].map((id) => db.collection("numberCommunities").doc(id))) : [];
+    const targetPhoneByCommunityID = new Map(communitySnapshots.map((snapshot) => [
+      snapshot.id,
+      snapshot.data() && snapshot.data().phoneMasked || null,
+    ]));
     return {
       content: content.docs.map(serializeDocument).map((report) => ({
         id: report.id,
@@ -224,6 +322,11 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
         status: report.status,
         decision: report.decision || null,
         communityID: report.communityID,
+        reporterPhone: phoneByUIDHash.get(report.reporterUIDHash) || null,
+        reporterPhoneMasked: report.reporterPhoneMasked || null,
+        targetPhone: phoneByCommunityID.get(report.communityID) || null,
+        targetPhoneMasked: report.targetPhoneMasked ||
+          targetPhoneByCommunityID.get(report.communityID) || null,
         createdAt: report.createdAt,
         reviewBy: report.reviewBy,
         resolvedAt: report.resolvedAt,
@@ -234,6 +337,11 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
           id: report.id,
           communityID: document.ref.parent.parent.id,
           reason: report.reason,
+          reporterPhone: phoneByUIDHash.get(report.uidHash) || null,
+          reporterPhoneMasked: report.reporterPhoneMasked || null,
+          targetPhone: phoneByCommunityID.get(document.ref.parent.parent.id) || null,
+          targetPhoneMasked: report.targetPhoneMasked ||
+            targetPhoneByCommunityID.get(document.ref.parent.parent.id) || null,
           status: report.status || "pending",
           decision: report.decision || null,
           createdAt: report.createdAt,
@@ -260,19 +368,22 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
       items: phoneUsers.map(({user, phone}, index) => {
         const profile = profiles[index].data() || {};
         const benefit = benefits[index].data() || {};
+        const authNames = namesFromDisplayName(user.displayName);
+        const profilePublished = profiles[index].exists || Boolean(authNames);
+        const firstName = profile.firstName || authNames && authNames.firstName || "";
+        const lastName = profile.lastName || authNames && authNames.lastName || "";
         return {
           uid: user.uid,
+          ...accountPurchaseSummary(benefit, user.uid),
           phone: `+${phone}`,
           phoneMasked: maskedPhone(phone),
           displayName: profile.displayName || user.displayName || "İsimsiz kullanıcı",
-          firstName: profile.firstName || "",
-          lastName: profile.lastName || "",
+          firstName,
+          lastName,
           isVisible: profile.isVisible !== false,
           disabled: user.disabled === true,
-          profilePublished: profiles[index].exists,
-          promotionalPremiumActive: isPremiumActive(benefit),
+          profilePublished,
           promotionalPremiumExpiresAt: serializeTimestamp(benefit.promotionalPremiumExpiresAt),
-          promotionalCreditBalance: Math.max(0, Number(benefit.promotionalCreditBalance || 0)),
           createdAt: user.metadata && user.metadata.creationTime || null,
           lastSignInAt: user.metadata && user.metadata.lastSignInTime || null,
         };
@@ -296,6 +407,7 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
     if (action === "users") return users(request.data.limit, request.data.pageToken);
     if (action === "reports") return reports(request.data.limit);
     if (action === "audits") return audits(request.data.limit);
+    if (action === "app-config") return appConfiguration();
     throw new HttpsError("invalid-argument", "Geçerli bir yönetim sorgusu seçin.");
   }
 
@@ -563,6 +675,144 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
     return {uid: user.uid, disabled: user.disabled === true};
   }
 
+  async function setAppConfiguration(uid, data) {
+    const signupCreditAmount = Number(data.signupCreditAmount);
+    if (!Number.isSafeInteger(signupCreditAmount) || signupCreditAmount < 0 ||
+        signupCreditAmount > 100 || typeof data.showPostLoginPaywall !== "boolean") {
+      throw new HttpsError("invalid-argument", "Başlangıç kredisi ve paywall ayarını kontrol edin.");
+    }
+    await db.collection("appConfiguration").doc("public").set({
+      signupCreditAmount,
+      showPostLoginPaywall: data.showPostLoginPaywall,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    await audit(uid, "set-app-config", "appConfiguration/public", {
+      signupCreditAmount,
+      showPostLoginPaywall: data.showPostLoginPaywall,
+    });
+    return {saved: true, signupCreditAmount, showPostLoginPaywall: data.showPostLoginPaywall};
+  }
+
+  async function contextsForAudience(data) {
+    if (data.audience === "single") return [contextForPhone(data.phone)];
+    if (data.audience !== "all") {
+      throw new HttpsError("invalid-argument", "Geçerli kullanıcı kitlesi seçin.");
+    }
+    const users = await allPhoneUsers();
+    return [...new Map(users.map(({phone}) => {
+      const context = contextForPhone(phone);
+      return [context.id, context];
+    })).values()];
+  }
+
+  async function commitInChunks(contexts, writer) {
+    for (let offset = 0; offset < contexts.length; offset += 400) {
+      const batch = db.batch();
+      for (const context of contexts.slice(offset, offset + 400)) writer(batch, context);
+      await batch.commit();
+    }
+  }
+
+  async function bulkAdjustCredits(uid, data) {
+    const amount = Number(data.amount);
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1000) {
+      throw new HttpsError("invalid-argument", "1 ile 1000 arasında kredi miktarı girin.");
+    }
+    const contexts = await contextsForAudience(data);
+    await commitInChunks(contexts, (batch, context) => batch.set(context.benefits, {
+      phoneMasked: context.masked,
+      promotionalCreditBalance: FieldValue.increment(amount),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true}));
+    await audit(uid, "bulk-adjust-credits", `audience:${data.audience}`, {
+      amount,
+      affectedAccounts: contexts.length,
+    });
+    return {affectedAccounts: contexts.length, amount};
+  }
+
+  async function bulkSetPremium(uid, data) {
+    const duration = normalizeAdminPremiumDuration(data.duration);
+    if (!duration || duration === "revoke") {
+      throw new HttpsError("invalid-argument", "Geçerli premium süresi seçin.");
+    }
+    const contexts = await contextsForAudience(data);
+    const expiresAt = premiumExpiresAt(duration, Timestamp);
+    await commitInChunks(contexts, (batch, context) => batch.set(context.benefits, {
+      phoneMasked: context.masked,
+      promotionalPremiumActive: true,
+      promotionalPremiumExpiresAt: expiresAt || FieldValue.delete(),
+      premiumSource: "admin-campaign",
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true}));
+    await audit(uid, "bulk-set-premium", `audience:${data.audience}`, {
+      duration,
+      affectedAccounts: contexts.length,
+    });
+    return {affectedAccounts: contexts.length, expiresAt: serializeTimestamp(expiresAt)};
+  }
+
+  async function notificationTokensForAudience(data) {
+    if (data.audience === "single") {
+      const phone = normalizePhone(data.phone);
+      if (!phone) throw new HttpsError("invalid-argument", "Geçerli telefon numarası girin.");
+      let user;
+      try {
+        user = await auth.getUserByPhoneNumber(`+${phone}`);
+      } catch (error) {
+        if (error && error.code === "auth/user-not-found") {
+          throw new HttpsError("not-found", "Bu numarayla kayıtlı kullanıcı bulunamadı.");
+        }
+        throw error;
+      }
+      const snapshot = await db.collection("pushDeviceTokens").where("uid", "==", user.uid).get();
+      return snapshot.docs.map((document) => ({token: document.data().token, reference: document.ref}));
+    }
+    if (data.audience !== "all") {
+      throw new HttpsError("invalid-argument", "Geçerli kullanıcı kitlesi seçin.");
+    }
+    const snapshot = await db.collection("pushDeviceTokens").get();
+    return snapshot.docs.map((document) => ({token: document.data().token, reference: document.ref}));
+  }
+
+  async function sendNotification(uid, data) {
+    const title = cleanText(data.title, 2, 80);
+    const body = cleanText(data.body, 2, 240);
+    if (!title || !body) throw new HttpsError("invalid-argument", "Bildirim başlığı ve metni zorunludur.");
+    const tokenEntries = (await notificationTokensForAudience(data))
+        .filter((entry) => typeof entry.token === "string" && entry.token.length > 20);
+    if (!tokenEntries.length) throw new HttpsError("not-found", "Bildirim alabilecek cihaz bulunamadı.");
+    let successCount = 0;
+    let failureCount = 0;
+    const invalidReferences = [];
+    for (let offset = 0; offset < tokenEntries.length; offset += 500) {
+      const chunk = tokenEntries.slice(offset, offset + 500);
+      const response = await messaging.sendEachForMulticast({
+        tokens: chunk.map((entry) => entry.token),
+        notification: {title, body},
+        apns: {payload: {aps: {sound: "default"}}},
+      });
+      successCount += response.successCount;
+      failureCount += response.failureCount;
+      response.responses.forEach((result, index) => {
+        const code = result.error && result.error.code;
+        if (["messaging/registration-token-not-registered", "messaging/invalid-registration-token"].includes(code)) {
+          invalidReferences.push(chunk[index].reference);
+        }
+      });
+    }
+    if (invalidReferences.length) {
+      await commitInChunks(invalidReferences, (batch, reference) => batch.delete(reference));
+    }
+    await audit(uid, "send-notification", `audience:${data.audience}`, {
+      successCount,
+      failureCount,
+      titleLength: Array.from(title).length,
+      bodyLength: Array.from(body).length,
+    });
+    return {successCount, failureCount};
+  }
+
   async function mutate(request) {
     const uid = requireAdmin(request);
     const data = request.data || {};
@@ -578,6 +828,10 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
     if (action === "adjust-credits") return adjustCredits(uid, data);
     if (action === "set-trust") return setTrust(uid, data);
     if (action === "set-user-disabled") return setUserDisabled(uid, data);
+    if (action === "set-app-config") return setAppConfiguration(uid, data);
+    if (action === "bulk-adjust-credits") return bulkAdjustCredits(uid, data);
+    if (action === "bulk-set-premium") return bulkSetPremium(uid, data);
+    if (action === "send-notification") return sendNotification(uid, data);
     if (["add-tag", "update-tag", "delete-tag"].includes(action)) {
       return mutateTag(uid, action, data);
     }
@@ -590,4 +844,12 @@ function createAdminService({db, auth, FieldValue, Timestamp, HttpsError, hmacKe
   return {query, mutate};
 }
 
-module.exports = {createAdminService, isMissingIndexError, isPremiumActive, newestFirst};
+module.exports = {
+  DEFAULT_APP_CONFIGURATION,
+  accountPurchaseSummary,
+  createAdminService,
+  isMissingIndexError,
+  isPremiumActive,
+  newestFirst,
+  publicAppConfiguration,
+};
