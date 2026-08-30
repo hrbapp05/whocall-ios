@@ -44,8 +44,8 @@ struct PremiumView: View {
 
                 sectionPicker
                     .padding(.horizontal, 44)
-                    .padding(.top, 2)
-                    .padding(.bottom, 2)
+                    .padding(.top, 6)
+                    .padding(.bottom, 6)
 
                 Group {
                     switch selectedSection {
@@ -182,21 +182,21 @@ struct PremiumView: View {
         VStack(spacing: 0) {
             Text("Premium ol")
                 .font(.subheadline)
-                .padding(.top, 12)
+                .padding(.top, 16)
             HStack(spacing: 4) {
                 Text("Daha Fazlasını")
                 Text("Keşfet!").foregroundStyle(DesignTokens.ColorToken.brandBlue)
             }
             .font(.title3.weight(.bold))
-            .padding(.top, 2)
+            .padding(.top, 3)
             Text("WhoCall Premium ile tüm bilgilerin kilidini açın.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.top, 3)
+                .padding(.top, 4)
 
-            benefits.padding(.top, 12)
+            benefits.padding(.top, 16)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 plan(
                     0,
                     "Haftalık Premium",
@@ -213,43 +213,43 @@ struct PremiumView: View {
                 )
             }
             .padding(.horizontal, 20)
-            .padding(.top, 14)
+            .padding(.top, 18)
 
             purchaseActions
                 .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 16)
+                .padding(.top, 24)
+                .padding(.bottom, 24)
         }
     }
 
     private var creditContent: some View {
         VStack(spacing: 0) {
-            Text("Sorgular için").font(.subheadline).padding(.top, 12)
+            Text("Sorgular için").font(.subheadline).padding(.top, 16)
             HStack(spacing: 4) {
                 Text("Kredi")
                 Text("Satın Al").foregroundStyle(DesignTokens.ColorToken.brandBlue)
             }
             .font(.title3.weight(.bold))
-            .padding(.top, 2)
+            .padding(.top, 3)
             Text("Abonelik gerektirmeden sorguların için kredi alabilirsin.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
-                .padding(.top, 3)
+                .padding(.top, 4)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 creditOption(3, price: purchaseStore.localizedPrice(for: .credits3, fallback: "199,99"))
                 creditOption(5, price: purchaseStore.localizedPrice(for: .credits5, fallback: "249,99"))
                 creditOption(10, price: purchaseStore.localizedPrice(for: .credits10, fallback: "499,99"))
             }
             .padding(.horizontal, 20)
-            .padding(.top, 18)
+            .padding(.top, 20)
 
             purchaseActions
                 .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 16)
+                .padding(.top, 24)
+                .padding(.bottom, 24)
         }
     }
 
@@ -298,20 +298,20 @@ struct PremiumView: View {
             Circle()
                 .fill(DesignTokens.ColorToken.brandBlue.opacity(0.045))
                 .overlay(Circle().stroke(DesignTokens.ColorToken.brandBlue.opacity(0.2), lineWidth: 1))
-                .frame(width: 146, height: 146)
+                .frame(width: 190, height: 190)
             Circle()
                 .stroke(DesignTokens.ColorToken.brandBlue.opacity(0.35), lineWidth: 1)
-                .frame(width: 84, height: 84)
+                .frame(width: 106, height: 106)
             Image("PremiumHero")
-                .resizable().scaledToFit().frame(width: 78, height: 78)
-                .shadow(color: DesignTokens.ColorToken.brandBlue.opacity(0.25), radius: 16, y: 8)
-                .gentleFloat(distance: 4, duration: 2.5)
-            paywallEmoji("IntroStickerLove", size: 43, x: -73, y: -34, delay: 0)
-            paywallEmoji("LoginEmoji4", size: 43, x: 74, y: -38, delay: 0.2)
-            paywallEmoji("IntroStickerCurly", size: 45, x: -54, y: 58, delay: 0.4)
-            paywallEmoji("IntroStickerLaugh", size: 45, x: 65, y: 51, delay: 0.6)
+                .resizable().scaledToFit().frame(width: 100, height: 100)
+                .shadow(color: DesignTokens.ColorToken.brandBlue.opacity(0.25), radius: 20, y: 9)
+                .gentleFloat(distance: 5, duration: 2.5)
+            paywallEmoji("IntroStickerLove", size: 54, x: -94, y: -43, delay: 0)
+            paywallEmoji("LoginEmoji4", size: 54, x: 96, y: -47, delay: 0.2)
+            paywallEmoji("IntroStickerCurly", size: 56, x: -69, y: 73, delay: 0.4)
+            paywallEmoji("IntroStickerLaugh", size: 56, x: 82, y: 66, delay: 0.6)
         }
-        .frame(height: 152)
+        .frame(height: 204)
     }
 
     private var creditHero: some View {
@@ -319,14 +319,14 @@ struct PremiumView: View {
             Circle()
                 .fill(DesignTokens.ColorToken.brandBlue.opacity(0.045))
                 .overlay(Circle().stroke(DesignTokens.ColorToken.brandBlue.opacity(0.2), lineWidth: 1))
-                .frame(width: 146, height: 146)
+                .frame(width: 190, height: 190)
             Image("CreditHero")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 150, height: 150)
-                .gentleFloat(distance: 4, duration: 2.6)
+                .frame(width: 204, height: 204)
+                .gentleFloat(distance: 5, duration: 2.6)
         }
-        .frame(height: 152)
+        .frame(height: 204)
     }
 
     private func paywallEmoji(_ name: String, size: CGFloat, x: CGFloat, y: CGFloat, delay: Double) -> some View {
@@ -356,7 +356,7 @@ struct PremiumView: View {
             Text(title).font(.caption.weight(.medium)).lineLimit(1)
         }
         .padding(.horizontal, 10)
-        .frame(height: 46)
+        .frame(height: 50)
         .background(.white, in: .rect(cornerRadius: 12))
     }
 
@@ -385,7 +385,7 @@ struct PremiumView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .frame(minHeight: index == 1 ? 80 : 68)
+            .frame(minHeight: index == 1 ? 86 : 74)
             .background(.white, in: .rect(cornerRadius: 16))
             .overlay {
                 RoundedRectangle(cornerRadius: 16)
@@ -417,7 +417,7 @@ struct PremiumView: View {
                     .foregroundStyle(DesignTokens.ColorToken.brandBlue)
             }
             .padding(.horizontal, 16)
-            .frame(height: 62)
+            .frame(height: 68)
             .background(.white, in: .rect(cornerRadius: 16))
             .overlay {
                 RoundedRectangle(cornerRadius: 16)
