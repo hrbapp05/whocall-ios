@@ -117,10 +117,13 @@ function isPremiumActive(data) {
 
 function accountPurchaseSummary(data, fallbackRevenueCatAppUserID = null) {
   const benefit = data || {};
+  const serverPurchasedCredits = Number(benefit.purchasedCreditBalance);
   const reportedPurchasedCredits = Number(benefit.reportedPurchasedCreditBalance);
   const promotionalCredits = Number(benefit.promotionalCreditBalance);
-  const purchasedCreditBalance = Number.isSafeInteger(reportedPurchasedCredits) ?
-    Math.max(0, reportedPurchasedCredits) : 0;
+  const purchasedCreditBalance = Number.isSafeInteger(serverPurchasedCredits) ?
+    Math.max(0, serverPurchasedCredits) :
+    Number.isSafeInteger(reportedPurchasedCredits) ?
+      Math.max(0, reportedPurchasedCredits) : 0;
   const promotionalCreditBalance = Number.isSafeInteger(promotionalCredits) ?
     Math.max(0, promotionalCredits) : 0;
   const promotionalPremiumActive = isPremiumActive(benefit);

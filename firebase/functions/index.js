@@ -8,6 +8,7 @@ const logger = require("firebase-functions/logger");
 const {defineSecret} = require("firebase-functions/params");
 const {HttpsError, onCall} = require("firebase-functions/v2/https");
 const {createAdminService, isPremiumActive} = require("./admin");
+const {verifyAppleCreditTransaction} = require("./appleTransactions");
 const {
   communityAuthor,
   containsBlockedCommunityLanguage,
@@ -81,6 +82,18 @@ async function enforceRateLimit(uid, operation, limit, secret) {
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
+}
+
+function safeCreditBalance(value) {
+  const balance = Number(value);
+  return Number.isSafeInteger(balance) && balance >= 0 && balance <= 100_000 ?
+    balance : null;
+}
+
+function authoritativePurchasedCreditBalance(data) {
+  const current = safeCreditBalance(data && data.purchasedCreditBalance);
+  if (current !== null) return current;
+  return safeCreditBalance(data && data.reportedPurchasedCreditBalance) || 0;
 }
 
 exports.publishVerifiedProfile = onCall(callableOptions, async (request) => {
@@ -181,28 +194,36 @@ exports.getAccountAccessState = onCall(callableOptions, async (request) => {
     const showPostLoginPaywall = configuration.data() &&
       typeof configuration.data().showPostLoginPaywall === "boolean" ?
       configuration.data().showPostLoginPaywall : true;
-    if (current.welcomeCreditGranted === true) {
-      return {...current, showPostLoginPaywall};
+    const updates = {};
+    if (safeCreditBalance(current.purchasedCreditBalance) === null) {
+      updates.purchasedCreditBalance = authoritativePurchasedCreditBalance(current);
+      updates.purchasedCreditBalanceInitializedAt = FieldValue.serverTimestamp();
+      updates.purchasedCreditBalanceMigratedFromSnapshot = true;
     }
-    const promotionalCreditBalance = Math.max(
-        0,
-        Number(current.promotionalCreditBalance || 0),
-    ) + signupCreditAmount;
-    transaction.set(reference, {
-      phoneMasked: `+90 5** *** ** ${phone.slice(-2)}`,
-      promotionalCreditBalance,
-      welcomeCreditGranted: true,
-      welcomeCreditAmount: signupCreditAmount,
-      welcomeCreditGrantedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, {merge: true});
-    return {...current, promotionalCreditBalance, showPostLoginPaywall};
+    if (current.welcomeCreditGranted !== true) {
+      updates.promotionalCreditBalance = Math.max(
+          0,
+          Number(current.promotionalCreditBalance || 0),
+      ) + signupCreditAmount;
+      updates.welcomeCreditGranted = true;
+      updates.welcomeCreditAmount = signupCreditAmount;
+      updates.welcomeCreditGrantedAt = FieldValue.serverTimestamp();
+    }
+    if (Object.keys(updates).length > 0) {
+      transaction.set(reference, {
+        ...updates,
+        phoneMasked: `+90 5** *** ** ${phone.slice(-2)}`,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    }
+    return {...current, ...updates, showPostLoginPaywall};
   });
   return {
     promotionalPremiumActive: isPremiumActive(data),
     promotionalPremiumExpiresAt: data.promotionalPremiumExpiresAt &&
       typeof data.promotionalPremiumExpiresAt.toDate === "function" ?
       data.promotionalPremiumExpiresAt.toDate().toISOString() : null,
+    purchasedCreditBalance: authoritativePurchasedCreditBalance(data),
     promotionalCreditBalance: Math.max(0, Number(data.promotionalCreditBalance || 0)),
     showPostLoginPaywall: data.showPostLoginPaywall !== false,
   };
@@ -213,12 +234,12 @@ exports.getAccountAccessState = onCall(callableOptions, async (request) => {
 // trust these client-reported fields.
 exports.syncPurchaseSnapshot = onCall(callableOptions, async (request) => {
   const phone = await authenticatedPhone(request);
-  const purchasedCreditBalance = Number(
-      request.data && request.data.purchasedCreditBalance,
-  );
+  const hasPurchasedCreditBalance = request.data &&
+    Object.prototype.hasOwnProperty.call(request.data, "purchasedCreditBalance");
+  const purchasedCreditBalance = hasPurchasedCreditBalance ?
+    safeCreditBalance(request.data.purchasedCreditBalance) : null;
   const revenueCatPremiumActive = request.data && request.data.revenueCatPremiumActive;
-  if (!Number.isSafeInteger(purchasedCreditBalance) ||
-      purchasedCreditBalance < 0 || purchasedCreditBalance > 100_000 ||
+  if ((hasPurchasedCreditBalance && purchasedCreditBalance === null) ||
       typeof revenueCatPremiumActive !== "boolean") {
     throw new HttpsError("invalid-argument", "Geçerli satın alma özeti zorunludur.");
   }
@@ -227,15 +248,91 @@ exports.syncPurchaseSnapshot = onCall(callableOptions, async (request) => {
   await enforceRateLimit(request.auth.uid, "purchase-snapshot-sync", 60, secret);
   const reference = db.collection("accountBenefits")
       .doc(`v1_${keyedDigest(phone, secret)}`);
-  await reference.set({
+  const update = {
     revenueCatAppUserID: request.auth.uid,
-    reportedPurchasedCreditBalance: purchasedCreditBalance,
     reportedRevenueCatPremiumActive: revenueCatPremiumActive,
     purchaseSnapshotUpdatedAt: FieldValue.serverTimestamp(),
     phoneMasked: maskedPhone(phone),
     updatedAt: FieldValue.serverTimestamp(),
-  }, {merge: true});
+  };
+  if (purchasedCreditBalance !== null) {
+    // Compatibility telemetry for older builds. It is never authoritative and
+    // therefore cannot inflate the server-managed balance after a reinstall.
+    update.reportedPurchasedCreditBalance = purchasedCreditBalance;
+  }
+  await reference.set(update, {merge: true});
   return {synchronized: true};
+});
+
+exports.claimPurchasedCredits = onCall({
+  ...callableOptions,
+  timeoutSeconds: 30,
+  memory: "512MiB",
+}, async (request) => {
+  const phone = await authenticatedPhone(request);
+  const signedTransaction = request.data && request.data.signedTransaction;
+  if (typeof signedTransaction !== "string" ||
+      signedTransaction.length < 100 || signedTransaction.length > 32_000) {
+    throw new HttpsError("invalid-argument", "İmzalı App Store işlemi zorunludur.");
+  }
+
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "credit-transaction-claim", 12, secret);
+  let verified;
+  try {
+    verified = await verifyAppleCreditTransaction(signedTransaction);
+  } catch (error) {
+    logger.warn("apple_credit_transaction_rejected", {
+      uidHash: keyedDigest(request.auth.uid, secret),
+      reason: error && error.message ? error.message : "verification-failed",
+    });
+    throw new HttpsError("failed-precondition", "App Store kredi işlemi doğrulanamadı.");
+  }
+
+  const accountID = `v1_${keyedDigest(phone, secret)}`;
+  const reference = db.collection("accountBenefits").doc(accountID);
+  const transactionReference = db.collection("appleCreditTransactions")
+      .doc(`v1_${keyedDigest(`apple-credit:${verified.transactionID}`, secret)}`);
+  const result = await db.runTransaction(async (transaction) => {
+    const [accountSnapshot, transactionSnapshot] = await transaction.getAll(
+        reference,
+        transactionReference,
+    );
+    const current = accountSnapshot.data() || {};
+    const balance = authoritativePurchasedCreditBalance(current);
+    if (transactionSnapshot.exists) {
+      if (transactionSnapshot.data().accountID !== accountID) {
+        throw new HttpsError("permission-denied", "Bu App Store işlemi başka bir hesaba aittir.");
+      }
+      return {alreadyProcessed: true, balance};
+    }
+
+    const nextBalance = Math.min(100_000, balance + verified.amount);
+    transaction.create(transactionReference, {
+      accountID,
+      amount: verified.amount,
+      environment: verified.environment,
+      productID: verified.productID,
+      purchaseDateMillis: verified.purchaseDate,
+      transactionIDHash: keyedDigest(verified.transactionID, secret),
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    transaction.set(reference, {
+      purchasedCreditBalance: nextBalance,
+      purchasedCreditBalanceInitializedAt:
+        current.purchasedCreditBalanceInitializedAt || FieldValue.serverTimestamp(),
+      revenueCatAppUserID: request.auth.uid,
+      phoneMasked: maskedPhone(phone),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    return {alreadyProcessed: false, balance: nextBalance};
+  });
+
+  return {
+    alreadyProcessed: result.alreadyProcessed,
+    creditedAmount: result.alreadyProcessed ? 0 : verified.amount,
+    purchasedCreditBalance: result.balance,
+  };
 });
 
 exports.registerPushToken = onCall(callableOptions, async (request) => {
@@ -290,22 +387,43 @@ exports.consumePromotionalCredit = onCall(callableOptions, async (request) => {
       return {
         authorized: true,
         promotionalPremiumActive: true,
+        purchasedCreditBalance: authoritativePurchasedCreditBalance(data),
         promotionalCreditBalance: Math.max(0, Number(data.promotionalCreditBalance || 0)),
       };
     }
-    const balance = Math.max(0, Number(data.promotionalCreditBalance || 0));
-    if (balance < 1) {
-      return {authorized: false, promotionalPremiumActive: false, promotionalCreditBalance: 0};
+    const purchasedBalance = authoritativePurchasedCreditBalance(data);
+    const promotionalBalance = Math.max(0, Number(data.promotionalCreditBalance || 0));
+    if (purchasedBalance > 0) {
+      transaction.set(reference, {
+        purchasedCreditBalance: purchasedBalance - 1,
+        lastCreditConsumedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      return {
+        authorized: true,
+        promotionalPremiumActive: false,
+        purchasedCreditBalance: purchasedBalance - 1,
+        promotionalCreditBalance: promotionalBalance,
+      };
+    }
+    if (promotionalBalance < 1) {
+      return {
+        authorized: false,
+        promotionalPremiumActive: false,
+        purchasedCreditBalance: 0,
+        promotionalCreditBalance: 0,
+      };
     }
     transaction.set(reference, {
-      promotionalCreditBalance: balance - 1,
+      promotionalCreditBalance: promotionalBalance - 1,
       lastCreditConsumedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
     return {
       authorized: true,
       promotionalPremiumActive: false,
-      promotionalCreditBalance: balance - 1,
+      purchasedCreditBalance: 0,
+      promotionalCreditBalance: promotionalBalance - 1,
     };
   });
   return result;

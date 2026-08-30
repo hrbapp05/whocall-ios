@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import RevenueCat
+import StoreKit
 
 #if canImport(FirebaseFunctions)
 @preconcurrency import FirebaseFunctions
@@ -86,6 +87,7 @@ final class PurchaseStore {
     static let creditBalanceKey = "creditBalance"
     static let creditBalanceMigrationKey = "creditBalance.v2.initialized"
     static let processedCreditTransactionsKey = "whocall.processedCreditTransactions.v1"
+    static let pendingSignedCreditTransactionsKey = "whocall.pendingSignedCreditTransactions.v1"
 
     private(set) var isConfigured = false
     private(set) var isLoadingProducts = false
@@ -124,17 +126,9 @@ final class PurchaseStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if !defaults.bool(forKey: Self.creditBalanceMigrationKey) {
-            // Earlier test builds displayed five placeholder credits. They were never
-            // purchased. Preserve every other balance because it may include a real
-            // consumable purchase from a previous TestFlight build.
-            let previousBalance = defaults.object(forKey: Self.creditBalanceKey) == nil
-                ? 0
-                : defaults.integer(forKey: Self.creditBalanceKey)
-            defaults.set(previousBalance == 5 ? 0 : previousBalance, forKey: Self.creditBalanceKey)
-            defaults.set(true, forKey: Self.creditBalanceMigrationKey)
-        }
-        purchasedCreditBalance = defaults.integer(forKey: Self.creditBalanceKey)
+        // Credit balances are account-scoped and server-managed. UserDefaults is
+        // intentionally not a balance source because it disappears on reinstall.
+        purchasedCreditBalance = 0
     }
 
     func start(accountID: String? = nil) async {
@@ -143,6 +137,7 @@ final class PurchaseStore {
         hasStarted = true
 
         await refreshPromotionalAccess()
+        await retryPendingCreditClaims()
 
         guard let publicSDKKey = RevenueCatConfiguration.publicSDKKey() else {
             await syncPurchaseSnapshot()
@@ -181,6 +176,7 @@ final class PurchaseStore {
     func activateAccount(_ accountID: String?) async {
         switchLocalAccount(to: accountID)
         await refreshPromotionalAccess()
+        await retryPendingCreditClaims()
         if isConfigured { await synchronizeRevenueCatAccount() }
         await syncPurchaseSnapshot()
     }
@@ -189,18 +185,12 @@ final class PurchaseStore {
         isPremium || creditBalance > 0
     }
 
-    /// Premium includes unlimited lookups. Otherwise one purchased credit is
-    /// consumed immediately before the result is revealed.
+    /// Premium includes unlimited lookups. Otherwise the server atomically
+    /// consumes one account-scoped credit before the result is revealed.
     @discardableResult
     func authorizeLookupResult() async -> Bool {
         if isPremium { return true }
-        if purchasedCreditBalance > 0 {
-            purchasedCreditBalance -= 1
-            defaults.set(purchasedCreditBalance, forKey: creditStorageKey)
-            await syncPurchaseSnapshot()
-            return true
-        }
-        return await consumePromotionalCredit()
+        return await consumeServerCredit()
     }
 
     func refreshProducts() async {
@@ -250,17 +240,23 @@ final class PurchaseStore {
             let (transaction, customerInfo, userCancelled) = try await Purchases.shared.purchase(product: product)
             guard !userCancelled else { return false }
 
-            let balanceBeforePurchase = purchasedCreditBalance
             apply(customerInfo)
             if let amount = productID.creditAmount {
-                guard let transactionID = transaction?.transactionIdentifier else {
+                guard let transaction,
+                      let signedTransaction = await signedTransactionJWS(
+                        for: productID,
+                        storeTransaction: transaction
+                      ) else {
                     alertMessage = "Kredi işlemi doğrulanamadı. Satın alım geçmişinizi yenileyip tekrar deneyin."
                     return false
                 }
-                if !hasProcessedCreditTransaction(transactionID) {
-                    _ = grantCreditsOnce(amount, transactionID: transactionID)
+                enqueuePendingCreditClaim(signedTransaction)
+                guard let result = await claimPurchasedCredits(signedTransaction) else {
+                    alertMessage = "Satın alımınız alındı ancak kredi sunucuyla eşitlenemedi. İnternet bağlantısı geldiğinde otomatik olarak tekrar denenecek."
+                    return false
                 }
-                if purchasedCreditBalance > balanceBeforePurchase {
+                removePendingCreditClaim(signedTransaction)
+                if result.creditedAmount > 0 {
                     alertMessage = "\(amount) sorgulama kredisi hesabınıza eklendi."
                 } else {
                     alertMessage = "Bu kredi işlemi daha önce hesabınıza eklenmiş."
@@ -303,6 +299,7 @@ final class PurchaseStore {
     func clearLocalAccountData(accountID: String) async {
         defaults.removeObject(forKey: "\(Self.creditBalanceKey).account.\(accountID)")
         defaults.removeObject(forKey: "\(Self.processedCreditTransactionsKey).account.\(accountID)")
+        defaults.removeObject(forKey: "\(Self.pendingSignedCreditTransactionsKey).account.\(accountID)")
 
         if isConfigured, revenueCatAccountID != nil {
             _ = try? await Purchases.shared.logOut()
@@ -369,13 +366,12 @@ final class PurchaseStore {
                 )
             }
             .sorted { $0.purchaseDate > $1.purchaseDate }
-        reconcileCreditHistory(creditPurchaseHistory)
     }
 
     private func switchLocalAccount(to accountID: String?) {
         guard activeAccountID != accountID else { return }
         activeAccountID = accountID
-        purchasedCreditBalance = defaults.integer(forKey: creditStorageKey)
+        purchasedCreditBalance = 0
         // Never carry server-managed access from the previous verified account
         // while the new account's callable refresh is still in flight or offline.
         promotionalPremium = false
@@ -416,6 +412,10 @@ final class PurchaseStore {
             let result = try await functions.httpsCallable("getAccountAccessState").call([:])
             guard let payload = result.data as? [String: Any] else { return }
             promotionalPremium = payload["promotionalPremiumActive"] as? Bool ?? false
+            purchasedCreditBalance = max(
+                0,
+                payload["purchasedCreditBalance"] as? Int ?? 0
+            )
             promotionalCreditBalance = max(
                 0,
                 payload["promotionalCreditBalance"] as? Int ?? 0
@@ -432,14 +432,18 @@ final class PurchaseStore {
 #endif
     }
 
-    private func consumePromotionalCredit() async -> Bool {
+    private func consumeServerCredit() async -> Bool {
 #if canImport(FirebaseFunctions)
-        guard FirebaseApp.app() != nil, promotionalCreditBalance > 0 else { return false }
+        guard FirebaseApp.app() != nil, creditBalance > 0 else { return false }
         do {
             let result = try await functions.httpsCallable("consumePromotionalCredit").call([:])
             guard let payload = result.data as? [String: Any],
                   let authorized = payload["authorized"] as? Bool else { return false }
             promotionalPremium = payload["promotionalPremiumActive"] as? Bool ?? promotionalPremium
+            purchasedCreditBalance = max(
+                0,
+                payload["purchasedCreditBalance"] as? Int ?? purchasedCreditBalance
+            )
             promotionalCreditBalance = max(
                 0,
                 payload["promotionalCreditBalance"] as? Int ?? promotionalCreditBalance
@@ -458,7 +462,6 @@ final class PurchaseStore {
         guard FirebaseApp.app() != nil, activeAccountID != nil else { return }
         do {
             _ = try await functions.httpsCallable("syncPurchaseSnapshot").call([
-                "purchasedCreditBalance": purchasedCreditBalance,
                 "revenueCatPremiumActive": revenueCatPremium
             ])
         } catch {
@@ -468,41 +471,82 @@ final class PurchaseStore {
 #endif
     }
 
-    private var creditStorageKey: String {
-        guard let activeAccountID else { return Self.creditBalanceKey }
-        return "\(Self.creditBalanceKey).account.\(activeAccountID)"
+    private struct CreditClaimResult {
+        let creditedAmount: Int
     }
 
-    private var processedTransactionsStorageKey: String {
-        guard let activeAccountID else { return Self.processedCreditTransactionsKey }
-        return "\(Self.processedCreditTransactionsKey).account.\(activeAccountID)"
+    private var pendingCreditClaimsStorageKey: String {
+        guard let activeAccountID else { return Self.pendingSignedCreditTransactionsKey }
+        return "\(Self.pendingSignedCreditTransactionsKey).account.\(activeAccountID)"
     }
 
-    @discardableResult
-    private func grantCreditsOnce(_ amount: Int, transactionID: String) -> Bool {
-        var processedTransactions = Set(
-            defaults.stringArray(forKey: processedTransactionsStorageKey) ?? []
-        )
-        guard processedTransactions.insert(transactionID).inserted else { return false }
-        purchasedCreditBalance += amount
-        defaults.set(purchasedCreditBalance, forKey: creditStorageKey)
-        defaults.set(Array(processedTransactions), forKey: processedTransactionsStorageKey)
-        return true
-    }
+    private func signedTransactionJWS(
+        for productID: RevenueCatProductID,
+        storeTransaction: StoreTransaction
+    ) async -> String? {
+        guard let purchasedTransaction = storeTransaction.sk2Transaction,
+              purchasedTransaction.productID == productID.rawValue,
+              let verificationResult = await StoreKit.Transaction.latest(for: productID.rawValue)
+        else { return nil }
 
-    private func hasProcessedCreditTransaction(_ transactionID: String) -> Bool {
-        defaults.stringArray(forKey: processedTransactionsStorageKey)?.contains(transactionID) == true
-    }
-
-    private func reconcileCreditHistory(_ records: [CreditPurchaseRecord]) {
-        for record in records {
-            _ = grantCreditsOnce(record.creditAmount, transactionID: record.id)
+        switch verificationResult {
+        case let .verified(latestTransaction) where latestTransaction.id == purchasedTransaction.id:
+            return verificationResult.jwsRepresentation
+        default:
+            return nil
         }
     }
 
+    private func enqueuePendingCreditClaim(_ signedTransaction: String) {
+        var claims = Set(defaults.stringArray(forKey: pendingCreditClaimsStorageKey) ?? [])
+        claims.insert(signedTransaction)
+        defaults.set(Array(claims), forKey: pendingCreditClaimsStorageKey)
+    }
+
+    private func removePendingCreditClaim(_ signedTransaction: String) {
+        var claims = Set(defaults.stringArray(forKey: pendingCreditClaimsStorageKey) ?? [])
+        claims.remove(signedTransaction)
+        defaults.set(Array(claims), forKey: pendingCreditClaimsStorageKey)
+    }
+
+    private func retryPendingCreditClaims() async {
+        guard activeAccountID != nil else { return }
+        let pendingClaims = defaults.stringArray(forKey: pendingCreditClaimsStorageKey) ?? []
+        for signedTransaction in pendingClaims {
+            if await claimPurchasedCredits(signedTransaction) != nil {
+                removePendingCreditClaim(signedTransaction)
+            }
+        }
+    }
+
+    private func claimPurchasedCredits(_ signedTransaction: String) async -> CreditClaimResult? {
+#if canImport(FirebaseFunctions)
+        guard FirebaseApp.app() != nil, activeAccountID != nil else { return nil }
+        do {
+            let result = try await functions.httpsCallable("claimPurchasedCredits").call([
+                "signedTransaction": signedTransaction
+            ])
+            guard let payload = result.data as? [String: Any],
+                  let purchasedBalance = payload["purchasedCreditBalance"] as? Int
+            else { return nil }
+            purchasedCreditBalance = max(0, purchasedBalance)
+            return CreditClaimResult(creditedAmount: max(0, payload["creditedAmount"] as? Int ?? 0))
+        } catch {
+            return nil
+        }
+#else
+        return nil
+#endif
+    }
+
 #if DEBUG
-    func reconcileCreditHistoryForTesting(_ records: [CreditPurchaseRecord]) {
-        reconcileCreditHistory(records)
+    func setServerCreditBalancesForTesting(purchased: Int, promotional: Int) {
+        purchasedCreditBalance = max(0, purchased)
+        promotionalCreditBalance = max(0, promotional)
+    }
+
+    func applyCreditHistoryForTesting(_ records: [CreditPurchaseRecord]) {
+        creditPurchaseHistory = records.sorted { $0.purchaseDate > $1.purchaseDate }
     }
 #endif
 }

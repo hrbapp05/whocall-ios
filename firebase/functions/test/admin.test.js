@@ -39,6 +39,17 @@ test("uses the Firebase UID as the RevenueCat search ID before the first device 
   assert.equal(summary.premiumActive, false);
 });
 
+test("prefers the server credit ledger over a stale device snapshot", () => {
+  const summary = accountPurchaseSummary({
+    purchasedCreditBalance: 4,
+    reportedPurchasedCreditBalance: 35,
+    promotionalCreditBalance: 1,
+  });
+  assert.equal(summary.purchasedCreditBalance, 4);
+  assert.equal(summary.promotionalCreditBalance, 1);
+  assert.equal(summary.totalCreditBalance, 5);
+});
+
 test("recognizes the production Firestore missing-index response", () => {
   assert.equal(isMissingIndexError({
     code: 9,

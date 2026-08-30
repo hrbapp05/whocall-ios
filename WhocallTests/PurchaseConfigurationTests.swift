@@ -56,11 +56,11 @@ final class PurchaseConfigurationTests: XCTestCase {
     }
 
     @MainActor
-    func testLegacyPlaceholderCreditsAreRemoved() throws {
+    func testLocalDefaultsNeverSeedAccountCreditBalance() throws {
         let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(5, forKey: PurchaseStore.creditBalanceKey)
+        defaults.set(35, forKey: PurchaseStore.creditBalanceKey)
 
         let store = PurchaseStore(defaults: defaults)
 
@@ -69,84 +69,53 @@ final class PurchaseConfigurationTests: XCTestCase {
     }
 
     @MainActor
-    func testPurchasedCreditAuthorizesExactlyOneLookup() async throws {
+    func testCreditBalanceCombinesServerManagedBalances() throws {
         let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(true, forKey: PurchaseStore.creditBalanceMigrationKey)
-        defaults.set(1, forKey: PurchaseStore.creditBalanceKey)
         let store = PurchaseStore(defaults: defaults)
 
-        let firstAuthorization = await store.authorizeLookupResult()
-        XCTAssertTrue(firstAuthorization)
-        XCTAssertEqual(store.creditBalance, 0)
-        let secondAuthorization = await store.authorizeLookupResult()
-        XCTAssertFalse(secondAuthorization)
+        store.setServerCreditBalancesForTesting(purchased: 8, promotional: 2)
+
+        XCTAssertEqual(store.creditBalance, 10)
+        XCTAssertTrue(store.hasLookupAccess)
     }
 
     @MainActor
-    func testFreeUserCannotRevealLookupResult() async throws {
+    func testSwitchingVerifiedAccountClearsPreviousServerBalance() throws {
         let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(true, forKey: PurchaseStore.creditBalanceMigrationKey)
-        defaults.set(0, forKey: PurchaseStore.creditBalanceKey)
-
-        let store = PurchaseStore(defaults: defaults)
-
-        XCTAssertFalse(store.hasLookupAccess)
-        let authorization = await store.authorizeLookupResult()
-        XCTAssertFalse(authorization)
-        XCTAssertEqual(store.creditBalance, 0)
-    }
-
-    @MainActor
-    func testMigrationPreservesPreviouslyPurchasedCredits() throws {
-        let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(8, forKey: PurchaseStore.creditBalanceKey)
-
-        let store = PurchaseStore(defaults: defaults)
-
-        XCTAssertEqual(store.creditBalance, 8)
-    }
-
-    @MainActor
-    func testCreditsAreIsolatedBetweenVerifiedAccounts() throws {
-        let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(2, forKey: "\(PurchaseStore.creditBalanceKey).account.account-a")
-        defaults.set(7, forKey: "\(PurchaseStore.creditBalanceKey).account.account-b")
-
         let store = PurchaseStore(defaults: defaults)
         store.switchAccountForTesting("account-a")
-        XCTAssertEqual(store.creditBalance, 2)
+        store.setServerCreditBalancesForTesting(purchased: 7, promotional: 1)
+        XCTAssertEqual(store.creditBalance, 8)
 
         store.switchAccountForTesting("account-b")
-        XCTAssertEqual(store.creditBalance, 7)
+
+        XCTAssertFalse(store.hasLookupAccess)
+        XCTAssertEqual(store.creditBalance, 0)
     }
 
     @MainActor
-    func testRevenueCatHistoryReconcilesCreditsExactlyOnce() throws {
+    func testRevenueCatHistoryNeverMintsCreditsAfterReinstall() throws {
         let suiteName = "PurchaseStoreTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(true, forKey: PurchaseStore.creditBalanceMigrationKey)
         let store = PurchaseStore(defaults: defaults)
         store.switchAccountForTesting("account-a")
-        let purchase = CreditPurchaseRecord(
-            id: "transaction-1",
-            productID: RevenueCatProductID.credits5.rawValue,
-            title: RevenueCatProductID.credits5.displayName,
-            creditAmount: 5,
+        store.setServerCreditBalancesForTesting(purchased: 2, promotional: 0)
+        let historicalPurchase = CreditPurchaseRecord(
+            id: "historical-transaction",
+            productID: RevenueCatProductID.credits10.rawValue,
+            title: RevenueCatProductID.credits10.displayName,
+            creditAmount: 10,
             purchaseDate: Date()
         )
 
-        store.reconcileCreditHistoryForTesting([purchase])
-        store.reconcileCreditHistoryForTesting([purchase])
+        store.applyCreditHistoryForTesting([historicalPurchase])
 
-        XCTAssertEqual(store.creditBalance, 5)
+        XCTAssertEqual(store.creditPurchaseHistory, [historicalPurchase])
+        XCTAssertEqual(store.creditBalance, 2)
     }
 }
