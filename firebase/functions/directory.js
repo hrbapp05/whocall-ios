@@ -29,6 +29,7 @@ const RESERVED_PROFILE_NAME_TERMS = new Set([
 
 const ADMIN_TRUST_LEVELS = ["high", "medium", "risky"];
 const ADMIN_PREMIUM_DURATIONS = ["7-days", "30-days", "lifetime", "revoke"];
+const VISIBILITY_REENABLE_COOLDOWN_MILLISECONDS = 12 * 60 * 60 * 1000;
 
 function normalizePhone(value) {
   if (typeof value !== "string") return null;
@@ -138,6 +139,68 @@ function normalizeCreditAdjustment(value) {
   return value;
 }
 
+function profileVisibilityTransition({
+  currentIsVisible,
+  hideCount,
+  lockedUntilMillis,
+  requestedIsVisible,
+  confirmsCooldown,
+  nowMillis,
+}) {
+  const visible = currentIsVisible !== false;
+  const normalizedHideCount = Math.max(
+      visible ? 0 : 1,
+      Number.isSafeInteger(hideCount) ? hideCount : 0,
+  );
+  const normalizedLockedUntil = Number.isFinite(lockedUntilMillis) ? lockedUntilMillis : null;
+
+  if (requestedIsVisible === visible) {
+    return {
+      allowed: true,
+      isVisible: visible,
+      hideCount: normalizedHideCount,
+      lockedUntilMillis: normalizedLockedUntil,
+    };
+  }
+
+  if (requestedIsVisible === true) {
+    if (normalizedLockedUntil && normalizedLockedUntil > nowMillis) {
+      return {
+        allowed: false,
+        reason: "locked",
+        isVisible: false,
+        hideCount: normalizedHideCount,
+        lockedUntilMillis: normalizedLockedUntil,
+      };
+    }
+    return {
+      allowed: true,
+      isVisible: true,
+      hideCount: normalizedHideCount,
+      lockedUntilMillis: null,
+    };
+  }
+
+  const isRepeatHide = normalizedHideCount > 0;
+  if (isRepeatHide && confirmsCooldown !== true) {
+    return {
+      allowed: false,
+      reason: "confirmation-required",
+      isVisible: true,
+      hideCount: normalizedHideCount,
+      lockedUntilMillis: null,
+    };
+  }
+
+  return {
+    allowed: true,
+    isVisible: false,
+    hideCount: normalizedHideCount + 1,
+    lockedUntilMillis: isRepeatHide ?
+      nowMillis + VISIBILITY_REENABLE_COOLDOWN_MILLISECONDS : null,
+  };
+}
+
 function maskedPhone(value) {
   const phone = normalizePhone(value);
   return phone ? `+90 5** *** ** ${phone.slice(-2)}` : null;
@@ -181,4 +244,6 @@ module.exports = {
   normalizePhone,
   normalizeLegalAcceptance,
   maskedPhone,
+  profileVisibilityTransition,
+  VISIBILITY_REENABLE_COOLDOWN_MILLISECONDS,
 };

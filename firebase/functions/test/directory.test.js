@@ -16,6 +16,7 @@ const {
   normalizeLegalAcceptance,
   normalizeName,
   normalizePhone,
+  profileVisibilityTransition,
   publicProfileFromAuthUser,
 } = require("../directory");
 
@@ -101,6 +102,78 @@ test("blocks Turkish insults despite spacing and casing", () => {
   assert.equal(containsBlockedCommunityLanguage("ŞEREFSİZ arayan"), true);
   assert.equal(containsBlockedCommunityLanguage("s i k t i r"), true);
   assert.equal(containsBlockedCommunityLanguage("Güvenilir tesisatçı"), false);
+});
+
+test("allows the first visibility opt-out without a cooldown", () => {
+  assert.deepEqual(profileVisibilityTransition({
+    currentIsVisible: true,
+    hideCount: 0,
+    lockedUntilMillis: null,
+    requestedIsVisible: false,
+    confirmsCooldown: false,
+    nowMillis: 1_000,
+  }), {
+    allowed: true,
+    isVisible: false,
+    hideCount: 1,
+    lockedUntilMillis: null,
+  });
+});
+
+test("requires confirmation and applies 12 hours on a repeat visibility opt-out", () => {
+  const unconfirmed = profileVisibilityTransition({
+    currentIsVisible: true,
+    hideCount: 1,
+    lockedUntilMillis: null,
+    requestedIsVisible: false,
+    confirmsCooldown: false,
+    nowMillis: 1_000,
+  });
+  assert.equal(unconfirmed.allowed, false);
+  assert.equal(unconfirmed.reason, "confirmation-required");
+
+  const confirmed = profileVisibilityTransition({
+    currentIsVisible: true,
+    hideCount: 1,
+    lockedUntilMillis: null,
+    requestedIsVisible: false,
+    confirmsCooldown: true,
+    nowMillis: 1_000,
+  });
+  assert.deepEqual(confirmed, {
+    allowed: true,
+    isVisible: false,
+    hideCount: 2,
+    lockedUntilMillis: 43_201_000,
+  });
+});
+
+test("prevents visibility re-enable until the cooldown expires", () => {
+  const locked = profileVisibilityTransition({
+    currentIsVisible: false,
+    hideCount: 2,
+    lockedUntilMillis: 50_000,
+    requestedIsVisible: true,
+    confirmsCooldown: false,
+    nowMillis: 40_000,
+  });
+  assert.equal(locked.allowed, false);
+  assert.equal(locked.reason, "locked");
+
+  const unlocked = profileVisibilityTransition({
+    currentIsVisible: false,
+    hideCount: 2,
+    lockedUntilMillis: 50_000,
+    requestedIsVisible: true,
+    confirmsCooldown: false,
+    nowMillis: 50_000,
+  });
+  assert.deepEqual(unlocked, {
+    allowed: true,
+    isVisible: true,
+    hideCount: 2,
+    lockedUntilMillis: null,
+  });
 });
 
 test("accepts only supported community moderation requests", () => {

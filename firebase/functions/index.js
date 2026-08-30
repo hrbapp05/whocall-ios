@@ -19,6 +19,7 @@ const {
   maskedPhone,
   normalizeName,
   normalizePhone,
+  profileVisibilityTransition,
   publicProfileFromAuthUser,
 } = require("./directory");
 
@@ -104,6 +105,8 @@ exports.publishVerifiedProfile = onCall(callableOptions, async (request) => {
     lastName,
     displayName: `${firstName} ${lastName}`,
     isVisible: sameOwner ? existing.data().isVisible !== false : true,
+    visibilityHideCount: sameOwner ?
+      Math.max(0, Number(existing.data().visibilityHideCount || 0)) : 0,
     verifiedAt: sameOwner ? existing.data().verifiedAt : FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     schemaVersion: 1,
@@ -114,7 +117,7 @@ exports.publishVerifiedProfile = onCall(callableOptions, async (request) => {
 });
 
 exports.lookupVerifiedProfile = onCall(callableOptions, async (request) => {
-  await authenticatedPhone(request);
+  const requesterPhone = await authenticatedPhone(request);
   const number = normalizePhone(request.data && request.data.number);
   if (!number) {
     throw new HttpsError("invalid-argument", "Geçerli bir Türkiye GSM numarası girin.");
@@ -122,12 +125,17 @@ exports.lookupVerifiedProfile = onCall(callableOptions, async (request) => {
 
   const secret = hmacKey.value();
   await enforceRateLimit(request.auth.uid, "lookup", 20, secret);
+  const requesterDocumentID = `v1_${keyedDigest(requesterPhone, secret)}`;
   const phoneHmac = keyedDigest(number, secret);
   const documentID = `v1_${phoneHmac}`;
-  const [snapshot, exclusion] = await Promise.all([
+  const [requesterSnapshot, snapshot, exclusion] = await Promise.all([
+    db.collection("verifiedNumberProfiles").doc(requesterDocumentID).get(),
     db.collection("verifiedNumberProfiles").doc(documentID).get(),
     db.collection("adminExcludedNumbers").doc(documentID).get(),
   ]);
+  if (requesterSnapshot.exists && requesterSnapshot.data().isVisible === false) {
+    return {found: false, requesterHidden: true};
+  }
   if (exclusion.exists && exclusion.data().active === true) {
     return {found: false, hidden: false, suppressed: true};
   }
@@ -330,6 +338,32 @@ exports.unpublishVerifiedProfile = onCall(callableOptions, async (request) => {
   return {published: false};
 });
 
+exports.getOwnVerifiedProfileVisibility = onCall(callableOptions, async (request) => {
+  const phone = await authenticatedPhone(request);
+  const secret = hmacKey.value();
+  await enforceRateLimit(request.auth.uid, "visibility-read", 30, secret);
+  const phoneHmac = keyedDigest(phone, secret);
+  const snapshot = await db.collection("verifiedNumberProfiles").doc(`v1_${phoneHmac}`).get();
+  if (!snapshot.exists || snapshot.data().uid !== request.auth.uid) {
+    return {isVisible: true, hideCount: 0, canEnableAt: null};
+  }
+  const data = snapshot.data();
+  const isVisible = data.isVisible !== false;
+  const hideCount = Math.max(
+      isVisible ? 0 : 1,
+      Number(data.visibilityHideCount || 0),
+  );
+  const lockedUntilMillis = data.visibilityLockedUntil &&
+    typeof data.visibilityLockedUntil.toMillis === "function" ?
+    data.visibilityLockedUntil.toMillis() : null;
+  return {
+    isVisible,
+    hideCount,
+    canEnableAt: !isVisible && lockedUntilMillis > Date.now() ?
+      new Date(lockedUntilMillis).toISOString() : null,
+  };
+});
+
 exports.setVerifiedProfileVisibility = onCall(callableOptions, async (request) => {
   const phone = await authenticatedPhone(request);
   const isVisible = request.data && request.data.isVisible;
@@ -340,34 +374,76 @@ exports.setVerifiedProfileVisibility = onCall(callableOptions, async (request) =
   await enforceRateLimit(request.auth.uid, "visibility", 10, secret);
   const phoneHmac = keyedDigest(phone, secret);
   const reference = db.collection("verifiedNumberProfiles").doc(`v1_${phoneHmac}`);
-  const snapshot = await reference.get();
-  if (!snapshot.exists) {
+  const initialSnapshot = await reference.get();
+  let creationNames = null;
+  if (!initialSnapshot.exists) {
     const user = await getAuth().getUser(request.auth.uid);
-    const names = namesFromDisplayName(user.displayName);
-    if (!names) {
+    creationNames = namesFromDisplayName(user.displayName);
+    if (!creationNames) {
       throw new HttpsError("not-found", "Yayınlanmış doğrulanmış profil bulunamadı.");
     }
-    await reference.set({
+  }
+  const confirmsCooldown = request.data && request.data.confirmsCooldown === true;
+  const result = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    const current = snapshot.data() || {};
+    if (snapshot.exists && current.uid !== request.auth.uid) {
+      throw new HttpsError("not-found", "Yayınlanmış doğrulanmış profil bulunamadı.");
+    }
+
+    const nowMillis = Date.now();
+    const lockedUntilMillis = current.visibilityLockedUntil &&
+      typeof current.visibilityLockedUntil.toMillis === "function" ?
+      current.visibilityLockedUntil.toMillis() : null;
+    const transition = profileVisibilityTransition({
+      currentIsVisible: current.isVisible,
+      hideCount: current.visibilityHideCount,
+      lockedUntilMillis,
+      requestedIsVisible: isVisible,
+      confirmsCooldown,
+      nowMillis,
+    });
+    if (!transition.allowed && transition.reason === "locked") {
+      throw new HttpsError(
+          "failed-precondition",
+          "Görünürlüğünüz 12 saatlik bekleme süresi dolmadan açılamaz.",
+          {canEnableAt: new Date(transition.lockedUntilMillis).toISOString()},
+      );
+    }
+    if (!transition.allowed) {
+      throw new HttpsError(
+          "failed-precondition",
+          "Görünürlüğü kapatmadan önce 12 saatlik kısıtlamayı onaylayın.",
+      );
+    }
+
+    const profileData = snapshot.exists ? {} : {
       uid: request.auth.uid,
       phoneHmac,
-      firstName: names.firstName,
-      lastName: names.lastName,
-      displayName: `${names.firstName} ${names.lastName}`,
-      isVisible,
+      firstName: creationNames.firstName,
+      lastName: creationNames.lastName,
+      displayName: `${creationNames.firstName} ${creationNames.lastName}`,
       verifiedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
       schemaVersion: 1,
-    });
-    return {published: isVisible};
-  }
-  if (snapshot.data().uid !== request.auth.uid) {
-    throw new HttpsError("not-found", "Yayınlanmış doğrulanmış profil bulunamadı.");
-  }
-  await reference.set({
-    isVisible,
-    updatedAt: FieldValue.serverTimestamp(),
-  }, {merge: true});
-  return {published: isVisible};
+    };
+    transaction.set(reference, {
+      ...profileData,
+      isVisible: transition.isVisible,
+      visibilityHideCount: transition.hideCount,
+      visibilityLockedUntil: transition.lockedUntilMillis ?
+        Timestamp.fromMillis(transition.lockedUntilMillis) : FieldValue.delete(),
+      lastVisibilityChangedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    return transition;
+  });
+  return {
+    published: result.isVisible,
+    isVisible: result.isVisible,
+    hideCount: result.hideCount,
+    canEnableAt: result.lockedUntilMillis ?
+      new Date(result.lockedUntilMillis).toISOString() : null,
+  };
 });
 
 exports.recordLegalAcceptance = onCall(callableOptions, async (request) => {
@@ -465,7 +541,7 @@ exports.deleteWhoCallAccount = onCall(accountDeletionOptions, async (request) =>
   batch.delete(db.collection("userLegalAcceptances").doc(uid));
   batch.delete(db.collection("communityUserSafety").doc(uid));
   const rateLimitOperations = [
-    "publish", "lookup", "unpublish", "visibility", "community-read",
+    "publish", "lookup", "unpublish", "visibility", "visibility-read", "community-read",
     "community-comment", "community-tag", "community-report",
     "community-content-report", "community-user-block",
     "legal-acceptance", "account-delete", "account-access-read",
