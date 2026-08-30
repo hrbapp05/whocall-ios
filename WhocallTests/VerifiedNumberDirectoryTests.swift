@@ -82,6 +82,23 @@ final class VerifiedNumberDirectoryTests: XCTestCase {
 
         XCTAssertEqual(result, .notFound)
     }
+
+    func testHiddenRequesterCannotSearchAnotherNumber() async throws {
+        let userID = "development-user"
+        ProfileVisibilityPreference.setVisible(false, userID: userID)
+        defer { ProfileVisibilityPreference.clear(userID: userID) }
+
+        let service = PhoneLookupService(
+            directory: StubVerifiedDirectory(result: .notRegistered),
+            apiClient: WhoCallAPIClient(
+                config: APIConfig(baseURL: URL(string: "http://127.0.0.1:1")!, apiKey: "")
+            )
+        )
+
+        let result = try await service.lookup(number: "5061585598")
+
+        XCTAssertEqual(result, .requesterHidden)
+    }
 }
 
 @MainActor
@@ -89,7 +106,19 @@ private struct StubVerifiedDirectory: VerifiedNumberDirectoryServicing {
     let result: VerifiedNumberDirectoryLookup
 
     func publishOwnProfile(firstName: String, lastName: String) async throws {}
-    func setOwnProfileVisibility(_ isVisible: Bool) async throws {}
+    func ownProfileVisibility() async throws -> VerifiedProfileVisibilityState {
+        .visible
+    }
+    func setOwnProfileVisibility(
+        _ isVisible: Bool,
+        confirmsCooldown: Bool
+    ) async throws -> VerifiedProfileVisibilityState {
+        VerifiedProfileVisibilityState(
+            isVisible: isVisible,
+            hideCount: isVisible ? 0 : 1,
+            canEnableAt: nil
+        )
+    }
     func lookup(number: String) async throws -> VerifiedNumberDirectoryLookup {
         result
     }

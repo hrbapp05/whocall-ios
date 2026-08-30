@@ -2,11 +2,13 @@ import SwiftUI
 
 enum LookupUnavailableReason: Hashable {
     case hidden
+    case requesterHidden
     case notFound
 
     var title: String {
         switch self {
         case .hidden: "Bu Kullanıcı Görünürlüğünü Kapattı"
+        case .requesterHidden: "Sorgulamak İçin Görünürlüğü Açın"
         case .notFound: "Sonuç Bulunamadı"
         }
     }
@@ -15,6 +17,8 @@ enum LookupUnavailableReason: Hashable {
         switch self {
         case .hidden:
             "Bu numaranın sahibi arama sonuçlarında görünmemeyi tercih ediyor."
+        case .requesterHidden:
+            "Görünürlüğünüz kapalıyken başka numaraları sorgulayamazsınız. Profil sekmesinden görünürlüğünüzü açarak devam edebilirsiniz."
         case .notFound:
             "Bu numara WhoCall topluluğunda veya veri tabanımızda kayıtlı değil."
         }
@@ -23,8 +27,13 @@ enum LookupUnavailableReason: Hashable {
     var symbol: String {
         switch self {
         case .hidden: "eye.slash.fill"
+        case .requesterHidden: "person.crop.circle.badge.exclamationmark"
         case .notFound: "magnifyingglass"
         }
+    }
+
+    var actionTitle: String {
+        self == .requesterHidden ? "Profilde Görünürlüğü Aç" : "Yeni Sorgu Yap"
     }
 }
 
@@ -69,15 +78,23 @@ struct LookupUnavailableView: View {
 
             Spacer()
 
-            Button("Yeni Sorgu Yap", action: onNewLookup)
+            Button(reason.actionTitle, action: onNewLookup)
                 .buttonStyle(PrimaryButtonStyle(background: DesignTokens.ColorToken.brandBlue))
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
                 .accessibilityIdentifier("lookup.unavailable.new")
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
-        .navigationTitle(reason == .hidden ? "Gizli Kullanıcı" : "Sonuç Bulunamadı")
+        .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var navigationTitle: String {
+        switch reason {
+        case .hidden: "Gizli Kullanıcı"
+        case .requesterHidden: "Görünürlük Gerekli"
+        case .notFound: "Sonuç Bulunamadı"
+        }
     }
 
     private var displayNumber: String {

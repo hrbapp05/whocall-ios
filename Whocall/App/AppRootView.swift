@@ -133,6 +133,7 @@ final class AppSession {
 }
 
 struct AppRootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var session = AppSession()
     @State private var purchaseStore = PurchaseStore()
@@ -140,6 +141,7 @@ struct AppRootView: View {
     @State private var communityStore = CommunityStore()
     @State private var postAuthenticationFlow: PostAuthenticationPresentation?
     @State private var legalAcceptanceRefresh = 0
+    @State private var requiredAppUpdate: RequiredAppUpdate?
 
     private var skipsOnboardingForUITest: Bool {
 #if DEBUG
@@ -150,37 +152,45 @@ struct AppRootView: View {
     }
 
     var body: some View {
-        Group {
-            if let screen = uiTestScreen {
-                UITestShowcaseView(screen: screen)
-            } else if !hasCompletedOnboarding && !skipsOnboardingForUITest {
-                OnboardingView { hasCompletedOnboarding = true }
-            } else if session.isResolvingAuthentication {
-                SplashScreenView()
-            } else if !session.isAuthenticated {
-                AuthFlowView {
-                    Task {
-                        guard await session.refreshValidatedCurrentUser() else { return }
-                        await purchaseStore.activateAccount(session.userID)
-                        await purchaseStore.refreshCustomerInfo()
-                        postAuthenticationFlow = PostAuthenticationPresentation.make(
-                            requiresProfileCompletion: session.requiresProfileCompletion,
-                            isPremium: purchaseStore.isPremium,
-                            showPostLoginPaywall: purchaseStore.showPostLoginPaywall
-                        )
+        ZStack {
+            Group {
+                if let screen = uiTestScreen {
+                    UITestShowcaseView(screen: screen)
+                } else if !hasCompletedOnboarding && !skipsOnboardingForUITest {
+                    OnboardingView { hasCompletedOnboarding = true }
+                } else if session.isResolvingAuthentication {
+                    SplashScreenView()
+                } else if !session.isAuthenticated {
+                    AuthFlowView {
+                        Task {
+                            guard await session.refreshValidatedCurrentUser() else { return }
+                            await purchaseStore.activateAccount(session.userID)
+                            await purchaseStore.refreshCustomerInfo()
+                            postAuthenticationFlow = PostAuthenticationPresentation.make(
+                                requiresProfileCompletion: session.requiresProfileCompletion,
+                                isPremium: purchaseStore.isPremium,
+                                showPostLoginPaywall: purchaseStore.showPostLoginPaywall
+                            )
+                        }
                     }
+                } else if requiresCurrentLegalAcceptance {
+                    LegalConsentGateView {
+                        LegalAcceptancePreference.markPending()
+                        try await LegalAccountServiceFactory.live().recordCurrentAcceptance()
+                        legalAcceptanceRefresh += 1
+                    } onDeclined: {
+                        LegalAcceptancePreference.clearPending()
+                        session.signOut()
+                    }
+                } else {
+                    AppShellView { session.signOut() }
                 }
-            } else if requiresCurrentLegalAcceptance {
-                LegalConsentGateView {
-                    LegalAcceptancePreference.markPending()
-                    try await LegalAccountServiceFactory.live().recordCurrentAcceptance()
-                    legalAcceptanceRefresh += 1
-                } onDeclined: {
-                    LegalAcceptancePreference.clearPending()
-                    session.signOut()
-                }
-            } else {
-                AppShellView { session.signOut() }
+            }
+
+            if let requiredAppUpdate {
+                MandatoryAppUpdateView(update: requiredAppUpdate)
+                    .zIndex(100)
+                    .transition(.opacity)
             }
         }
         .environment(purchaseStore)
@@ -200,7 +210,16 @@ struct AppRootView: View {
             recentLookupStore.activateAccount(session.userID)
             await purchaseStore.start(accountID: session.userID)
             await PendingVerifiedProfileStore.retryIfNeeded()
+            _ = await ProfileVisibilitySynchronizer.synchronize()
             await CurrentVerifiedProfileSynchronizer.synchronize()
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active, shouldCheckForAppUpdate else { return }
+            let update = await AppUpdateService().requiredUpdate()
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.25)) {
+                requiredAppUpdate = update
+            }
         }
         .task(id: shouldRequestMetaTracking) {
             guard shouldRequestMetaTracking else { return }
@@ -218,6 +237,7 @@ struct AppRootView: View {
             recentLookupStore.activateAccount(userID)
             Task {
                 await purchaseStore.activateAccount(userID)
+                _ = await ProfileVisibilitySynchronizer.synchronize()
                 await CurrentVerifiedProfileSynchronizer.synchronize()
             }
         }
@@ -237,6 +257,14 @@ struct AppRootView: View {
             !session.isResolvingAuthentication &&
             !requiresCurrentLegalAcceptance &&
             postAuthenticationFlow == nil
+    }
+
+    private var shouldCheckForAppUpdate: Bool {
+#if DEBUG
+        false
+#else
+        uiTestScreen == nil
+#endif
     }
 
     private var uiTestScreen: String? {

@@ -37,12 +37,14 @@ struct PremiumView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                sectionPicker
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
+        VStack(spacing: 0) {
+            sectionPicker
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color(red: 0.97, green: 0.98, blue: 1))
+                .zIndex(10)
 
+            ScrollView(showsIndicators: false) {
                 Group {
                     switch selectedSection {
                     case .subscriptions:
@@ -53,6 +55,7 @@ struct PremiumView: View {
                 }
                 .id(selectedSection)
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
+                .padding(.top, 8)
             }
         }
         .background(Color(red: 0.97, green: 0.98, blue: 1).ignoresSafeArea())
@@ -137,7 +140,6 @@ struct PremiumView: View {
     private var subscriptionContent: some View {
         VStack(spacing: 0) {
             premiumHero
-                .padding(.top, -8)
                 .figmaEntrance(delay: 0.04, distance: 14)
 
             Text("Premium ol")
@@ -185,7 +187,6 @@ struct PremiumView: View {
     private var creditContent: some View {
         VStack(spacing: 0) {
             creditHero
-                .padding(.top, 4)
                 .figmaEntrance(delay: 0.04, distance: 14)
 
             Text("Sorgular için").font(.body).padding(.top, 6)

@@ -140,23 +140,36 @@ enum CurrentVerifiedProfileSynchronizer {
         let lastName = parts.dropFirst().joined(separator: " ")
         let isVisible = ProfileVisibilityPreference.isVisible(userID: userID)
 
+        guard isVisible else { return }
+
         do {
-            if isVisible {
-                try await VerifiedNumberDirectoryFactory.live().publishOwnProfile(
-                    firstName: String(firstName),
-                    lastName: lastName
-                )
-            } else {
-                try await VerifiedNumberDirectoryFactory.live().setOwnProfileVisibility(false)
-            }
+            try await VerifiedNumberDirectoryFactory.live().publishOwnProfile(
+                firstName: String(firstName),
+                lastName: lastName
+            )
             PendingVerifiedProfileStore.clear()
         } catch {
-            if isVisible {
-                PendingVerifiedProfileStore.save(
-                    firstName: String(firstName),
-                    lastName: lastName
-                )
-            }
+            PendingVerifiedProfileStore.save(
+                firstName: String(firstName),
+                lastName: lastName
+            )
+        }
+    }
+}
+
+enum ProfileVisibilitySynchronizer {
+    @MainActor
+    @discardableResult
+    static func synchronize() async -> VerifiedProfileVisibilityState? {
+        let profile = ProfileServiceFactory.live()
+        guard let userID = profile.currentUserID,
+              profile.currentPhoneNumber?.isEmpty == false else { return nil }
+        do {
+            let state = try await VerifiedNumberDirectoryFactory.live().ownProfileVisibility()
+            ProfileVisibilityPreference.setVisible(state.isVisible, userID: userID)
+            return state
+        } catch {
+            return nil
         }
     }
 }

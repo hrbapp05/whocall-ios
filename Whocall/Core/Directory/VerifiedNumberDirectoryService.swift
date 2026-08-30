@@ -8,8 +8,29 @@ import FirebaseCore
 @MainActor
 protocol VerifiedNumberDirectoryServicing {
     func publishOwnProfile(firstName: String, lastName: String) async throws
-    func setOwnProfileVisibility(_ isVisible: Bool) async throws
+    func ownProfileVisibility() async throws -> VerifiedProfileVisibilityState
+    func setOwnProfileVisibility(
+        _ isVisible: Bool,
+        confirmsCooldown: Bool
+    ) async throws -> VerifiedProfileVisibilityState
     func lookup(number: String) async throws -> VerifiedNumberDirectoryLookup
+}
+
+struct VerifiedProfileVisibilityState: Equatable, Sendable {
+    let isVisible: Bool
+    let hideCount: Int
+    let canEnableAt: Date?
+
+    static let visible = Self(isVisible: true, hideCount: 0, canEnableAt: nil)
+
+    var requiresHideConfirmation: Bool {
+        isVisible && hideCount > 0
+    }
+
+    var isEnableLocked: Bool {
+        guard !isVisible, let canEnableAt else { return false }
+        return canEnableAt > Date()
+    }
 }
 
 enum VerifiedNumberDirectoryLookup: Equatable, Sendable {
@@ -17,6 +38,7 @@ enum VerifiedNumberDirectoryLookup: Equatable, Sendable {
     case notRegistered
     case hidden
     case suppressed
+    case requesterHidden
 }
 
 enum VerifiedNumberDirectoryError: LocalizedError, Equatable {
@@ -48,7 +70,15 @@ enum VerifiedNumberDirectoryFactory {
 @MainActor
 struct DevelopmentVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing {
     func publishOwnProfile(firstName: String, lastName: String) async throws {}
-    func setOwnProfileVisibility(_ isVisible: Bool) async throws {}
+    func ownProfileVisibility() async throws -> VerifiedProfileVisibilityState {
+        .visible
+    }
+    func setOwnProfileVisibility(
+        _ isVisible: Bool,
+        confirmsCooldown: Bool
+    ) async throws -> VerifiedProfileVisibilityState {
+        .init(isVisible: isVisible, hideCount: isVisible ? 0 : 1, canEnableAt: nil)
+    }
     func lookup(number: String) async throws -> VerifiedNumberDirectoryLookup { .notRegistered }
 }
 
@@ -68,14 +98,28 @@ struct FirebaseVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing 
         ])
     }
 
-    func setOwnProfileVisibility(_ isVisible: Bool) async throws {
+    func ownProfileVisibility() async throws -> VerifiedProfileVisibilityState {
         guard FirebaseApp.app() != nil else {
             throw VerifiedNumberDirectoryError.configurationMissing
         }
 
-        _ = try await functions.httpsCallable("setVerifiedProfileVisibility").call([
+        let result = try await functions.httpsCallable("getOwnVerifiedProfileVisibility").call()
+        return try visibilityState(from: result.data)
+    }
+
+    func setOwnProfileVisibility(
+        _ isVisible: Bool,
+        confirmsCooldown: Bool
+    ) async throws -> VerifiedProfileVisibilityState {
+        guard FirebaseApp.app() != nil else {
+            throw VerifiedNumberDirectoryError.configurationMissing
+        }
+
+        let result = try await functions.httpsCallable("setVerifiedProfileVisibility").call([
             "isVisible": isVisible,
+            "confirmsCooldown": confirmsCooldown,
         ])
+        return try visibilityState(from: result.data)
     }
 
     func lookup(number: String) async throws -> VerifiedNumberDirectoryLookup {
@@ -91,6 +135,7 @@ struct FirebaseVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing 
             throw VerifiedNumberDirectoryError.invalidResponse
         }
         guard found else {
+            if payload["requesterHidden"] as? Bool == true { return .requesterHidden }
             if payload["suppressed"] as? Bool == true { return .suppressed }
             return payload["hidden"] as? Bool == true ? .hidden : .notRegistered
         }
@@ -108,6 +153,22 @@ struct FirebaseVerifiedNumberDirectoryService: VerifiedNumberDirectoryServicing 
             firstName: firstName,
             lastName: lastName
         ))
+    }
+
+    private func visibilityState(from value: Any) throws -> VerifiedProfileVisibilityState {
+        guard let payload = value as? [String: Any],
+              let isVisible = payload["isVisible"] as? Bool else {
+            throw VerifiedNumberDirectoryError.invalidResponse
+        }
+        let hideCount = max(0, (payload["hideCount"] as? NSNumber)?.intValue ?? 0)
+        let canEnableAt = (payload["canEnableAt"] as? String).flatMap {
+            ISO8601DateFormatter().date(from: $0)
+        }
+        return VerifiedProfileVisibilityState(
+            isVisible: isVisible,
+            hideCount: hideCount,
+            canEnableAt: canEnableAt
+        )
     }
 }
 #endif

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HomeFlowView: View {
+    let onVisibilityRequired: () -> Void
     @Environment(PurchaseStore.self) private var purchaseStore
     @Environment(RecentLookupStore.self) private var recentLookupStore
     @State private var path: [HomeRoute] = []
@@ -11,7 +12,8 @@ struct HomeFlowView: View {
                 onSearch: { path.append(.lookup($0)) },
                 onRecord: { path.append(.person($0.displayName, $0.phoneNumber)) },
                 onPremium: { path.append(.premium) },
-                onCredits: { path.append(.credits) }
+                onCredits: { path.append(.credits) },
+                onVisibilityRequired: onVisibilityRequired
             )
             .navigationDestination(for: HomeRoute.self) { route in
                 destination(route)
@@ -39,6 +41,8 @@ struct HomeFlowView: View {
                         }
                     case .hidden:
                         replaceLookup(with: .unavailable(.hidden, number))
+                    case .requesterHidden:
+                        replaceLookup(with: .unavailable(.requesterHidden, number))
                     case .notFound:
                         replaceLookup(with: .unavailable(.notFound, number))
                     }
@@ -66,7 +70,10 @@ struct HomeFlowView: View {
             LookupUnavailableView(
                 reason: reason,
                 number: number,
-                onNewLookup: { path.removeAll() }
+                onNewLookup: {
+                    path.removeAll()
+                    if reason == .requesterHidden { onVisibilityRequired() }
+                }
             )
         case .premium:
             PremiumView()
@@ -79,6 +86,12 @@ struct HomeFlowView: View {
         // Replace the progress screen so Back never replays the scanner.
         if !path.isEmpty { path.removeLast() }
         path.append(route)
+    }
+}
+
+extension HomeFlowView {
+    init() {
+        self.init(onVisibilityRequired: {})
     }
 }
 

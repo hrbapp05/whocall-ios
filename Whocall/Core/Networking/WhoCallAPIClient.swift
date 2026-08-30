@@ -69,10 +69,8 @@ struct PhoneLookupService {
 
     func lookup(number: String) async throws -> PhoneLookupOutcome {
         let profile = ProfileServiceFactory.live()
-        if canonical(profile.currentPhoneNumber) == canonical(number),
-           !canonical(number).isEmpty,
-           !ProfileVisibilityPreference.isVisible(userID: profile.currentUserID) {
-            return .hidden
+        if !ProfileVisibilityPreference.isVisible(userID: profile.currentUserID) {
+            return .requesterHidden
         }
         if canonical(profile.currentPhoneNumber) == canonical(number),
            let displayName = profile.currentDisplayName,
@@ -87,6 +85,9 @@ struct PhoneLookupService {
             return .hidden
         case .suppressed:
             return .notFound
+        case .requesterHidden:
+            ProfileVisibilityPreference.setVisible(false, userID: profile.currentUserID)
+            return .requesterHidden
         case .notRegistered:
             break
         }

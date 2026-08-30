@@ -5,8 +5,9 @@ struct ProfileView: View {
     @Environment(PurchaseStore.self) private var purchaseStore
     @Environment(RecentLookupStore.self) private var recentLookupStore
     @State private var isVisible = true
-    @State private var hasLoadedVisibility = false
+    @State private var visibilityState = VerifiedProfileVisibilityState.visible
     @State private var isUpdatingVisibility = false
+    @State private var visibilityDialog: VisibilityDialog?
     @State private var isPhoneVerificationPresented = false
     @State private var verificationMessage: String?
     @State private var isDeleteConfirmationPresented = false
@@ -32,7 +33,7 @@ struct ProfileView: View {
                     }
                 }
 
-                Section("Hesabım") {
+                Section {
                     Button(action: verifyPhoneNumber) {
                         HStack {
                             Label("Numaramı Doğrula", systemImage: "checkmark.seal")
@@ -49,8 +50,14 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Toggle("Arama sonuçlarında görünürlük", isOn: $isVisible)
+                    Toggle("Arama sonuçlarında görünürlük", isOn: visibilityBinding)
                         .disabled(isUpdatingVisibility)
+                } header: {
+                    Text("Hesabım")
+                } footer: {
+                    if !isVisible {
+                        Text(visibilityFooterMessage)
+                    }
                 }
 
                 Section("Satın Alımlar") {
@@ -112,6 +119,31 @@ struct ProfileView: View {
             } message: {
                 Text(verificationMessage ?? "")
             }
+            .alert(item: $visibilityDialog) { dialog in
+                switch dialog {
+                case .confirmRepeatHide:
+                    Alert(
+                        title: Text("Görünürlüğü kapatmak istiyor musunuz?"),
+                        message: Text("Görünürlüğü kapatırsanız 12 saat boyunca tekrar açamaz ve bu süre içinde başka kullanıcıları sorgulayamazsınız."),
+                        primaryButton: .destructive(Text("Görünürlüğü Kapat")) {
+                            updateVisibility(false, confirmsCooldown: true)
+                        },
+                        secondaryButton: .cancel(Text("Vazgeç"))
+                    )
+                case let .locked(canEnableAt):
+                    Alert(
+                        title: Text("Görünürlük geçici olarak kilitli"),
+                        message: Text("Görünürlüğünüzü \(formattedLockDate(canEnableAt)) tarihinde yeniden açabilirsiniz. Bu süre içinde numara sorgulayamazsınız."),
+                        dismissButton: .default(Text("Tamam"))
+                    )
+                case let .error(message):
+                    Alert(
+                        title: Text("WhoCall"),
+                        message: Text(message),
+                        dismissButton: .default(Text("Tamam"))
+                    )
+                }
+            }
             .confirmationDialog(
                 "WhoCall hesabınız kalıcı olarak silinsin mi?",
                 isPresented: $isDeleteConfirmationPresented,
@@ -125,13 +157,7 @@ struct ProfileView: View {
                 Text("Doğrulanmış profiliniz, yasal tercih kaydınız, yorumlarınız ve raporlarınız silinir. Kimlikle ilişkilendirilmeyen topluluk istatistikleri ile Apple satın alma kayıtları ilgili saklama kurallarına tabi olabilir.")
             }
             .task {
-                let profile = ProfileServiceFactory.live()
-                isVisible = ProfileVisibilityPreference.isVisible(userID: profile.currentUserID)
-                hasLoadedVisibility = true
-            }
-            .onChange(of: isVisible) { oldValue, newValue in
-                guard hasLoadedVisibility, oldValue != newValue else { return }
-                updateVisibility(newValue, revertingTo: oldValue)
+                await loadVisibility()
             }
         }
     }
@@ -144,21 +170,77 @@ struct ProfileView: View {
         }
     }
 
-    private func updateVisibility(_ newValue: Bool, revertingTo oldValue: Bool) {
+    private var visibilityBinding: Binding<Bool> {
+        Binding(
+            get: { isVisible },
+            set: { requestedValue in
+                guard requestedValue != isVisible, !isUpdatingVisibility else { return }
+                if requestedValue {
+                    if visibilityState.isEnableLocked, let canEnableAt = visibilityState.canEnableAt {
+                        visibilityDialog = .locked(canEnableAt)
+                    } else {
+                        updateVisibility(true, confirmsCooldown: false)
+                    }
+                } else if visibilityState.requiresHideConfirmation {
+                    visibilityDialog = .confirmRepeatHide
+                } else {
+                    updateVisibility(false, confirmsCooldown: false)
+                }
+            }
+        )
+    }
+
+    @MainActor
+    private func loadVisibility() async {
+        let profile = ProfileServiceFactory.live()
+        if let state = await ProfileVisibilitySynchronizer.synchronize() {
+            visibilityState = state
+            isVisible = state.isVisible
+        } else {
+            let localValue = ProfileVisibilityPreference.isVisible(userID: profile.currentUserID)
+            isVisible = localValue
+            visibilityState = .init(
+                isVisible: localValue,
+                hideCount: localValue ? 0 : 1,
+                canEnableAt: nil
+            )
+        }
+    }
+
+    private func updateVisibility(_ newValue: Bool, confirmsCooldown: Bool) {
+        let previousValue = isVisible
+        withAnimation(.easeInOut(duration: 0.2)) { isVisible = newValue }
         isUpdatingVisibility = true
         Task {
             do {
-                try await VerifiedNumberDirectoryFactory.live().setOwnProfileVisibility(newValue)
+                let state = try await VerifiedNumberDirectoryFactory.live().setOwnProfileVisibility(
+                    newValue,
+                    confirmsCooldown: confirmsCooldown
+                )
                 let profile = ProfileServiceFactory.live()
-                ProfileVisibilityPreference.setVisible(newValue, userID: profile.currentUserID)
+                visibilityState = state
+                isVisible = state.isVisible
+                ProfileVisibilityPreference.setVisible(state.isVisible, userID: profile.currentUserID)
             } catch {
-                hasLoadedVisibility = false
-                isVisible = oldValue
-                hasLoadedVisibility = true
-                verificationMessage = "Görünürlük ayarı sunucuyla eşitlenemedi. Lütfen tekrar deneyin."
+                withAnimation(.easeInOut(duration: 0.2)) { isVisible = previousValue }
+                visibilityDialog = .error(error.localizedDescription)
             }
             isUpdatingVisibility = false
         }
+    }
+
+    private var visibilityFooterMessage: String {
+        if visibilityState.isEnableLocked, let canEnableAt = visibilityState.canEnableAt {
+            return "Görünürlüğünüz \(formattedLockDate(canEnableAt)) tarihine kadar kapalıdır. Bu sürede numara sorgulayamazsınız."
+        }
+        return "Görünürlüğünüz kapalıyken arama sonuçlarında görünmez ve başka numaraları sorgulayamazsınız."
+    }
+
+    private func formattedLockDate(_ date: Date) -> String {
+        date.formatted(
+            Date.FormatStyle(date: .abbreviated, time: .shortened)
+                .locale(Locale(identifier: "tr_TR"))
+        )
     }
 
     @MainActor
@@ -211,5 +293,19 @@ struct ProfileView: View {
             get: { verificationMessage != nil },
             set: { if !$0 { verificationMessage = nil } }
         )
+    }
+}
+
+private enum VisibilityDialog: Identifiable {
+    case confirmRepeatHide
+    case locked(Date)
+    case error(String)
+
+    var id: String {
+        switch self {
+        case .confirmRepeatHide: "confirm-repeat-hide"
+        case .locked: "locked"
+        case .error: "error"
+        }
     }
 }

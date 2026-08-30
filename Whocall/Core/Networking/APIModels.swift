@@ -30,6 +30,7 @@ struct PhoneOwner: Decodable, Equatable, Hashable, Sendable {
 enum PhoneLookupOutcome: Equatable, Sendable {
     case found(PhoneOwner)
     case hidden
+    case requesterHidden
     case notFound
 }
 

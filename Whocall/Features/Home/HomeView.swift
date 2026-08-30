@@ -7,8 +7,10 @@ struct HomeView: View {
     let onRecord: (SearchRecord) -> Void
     let onPremium: () -> Void
     let onCredits: () -> Void
+    let onVisibilityRequired: () -> Void
     @FocusState private var isSearchFocused: Bool
     @State private var phoneNumber = ""
+    @State private var isVisibilityRequiredPresented = false
 
     var body: some View {
         ZStack {
@@ -55,6 +57,15 @@ struct HomeView: View {
             let digits = String(newValue.filter(\.isNumber).suffix(10))
             if digits != newValue { phoneNumber = digits }
         }
+        .task {
+            _ = await ProfileVisibilitySynchronizer.synchronize()
+        }
+        .alert("Görünürlük Gerekli", isPresented: $isVisibilityRequiredPresented) {
+            Button("Vazgeç", role: .cancel) {}
+            Button("Profile Git", action: onVisibilityRequired)
+        } message: {
+            Text("Görünürlüğünüz kapalıyken başka kullanıcıları sorgulayamazsınız. Devam etmek için profilinizden arama görünürlüğünü açın.")
+        }
     }
 
     private var searchField: some View {
@@ -72,6 +83,12 @@ struct HomeView: View {
 
             Button {
                 guard isReadyToSearch else { return }
+                let profile = ProfileServiceFactory.live()
+                guard ProfileVisibilityPreference.isVisible(userID: profile.currentUserID) else {
+                    dismissKeyboard()
+                    isVisibilityRequiredPresented = true
+                    return
+                }
                 dismissKeyboard()
                 let numberToSearch = phoneNumber
                 phoneNumber = ""
@@ -99,6 +116,20 @@ struct HomeView: View {
         .shadow(color: .black.opacity(isSearchFocused ? 0.10 : 0.05), radius: isSearchFocused ? 20 : 12, y: 6)
         .animation(.spring(duration: 0.48, bounce: 0.24), value: isSearchFocused)
         .animation(.spring(duration: 0.4, bounce: 0.32), value: isReadyToSearch)
+    }
+
+    init(
+        onSearch: @escaping (String) -> Void,
+        onRecord: @escaping (SearchRecord) -> Void,
+        onPremium: @escaping () -> Void,
+        onCredits: @escaping () -> Void,
+        onVisibilityRequired: @escaping () -> Void = {}
+    ) {
+        self.onSearch = onSearch
+        self.onRecord = onRecord
+        self.onPremium = onPremium
+        self.onCredits = onCredits
+        self.onVisibilityRequired = onVisibilityRequired
     }
 
     private var premiumCard: some View {
