@@ -86,6 +86,9 @@ struct HomeView: View {
                 let profile = ProfileServiceFactory.live()
                 guard ProfileVisibilityPreference.isVisible(userID: profile.currentUserID) else {
                     dismissKeyboard()
+                    withAnimation(.spring(duration: 0.4, bounce: 0.2)) {
+                        phoneNumber = ""
+                    }
                     isVisibilityRequiredPresented = true
                     return
                 }
@@ -106,15 +109,17 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
             .disabled(!isReadyToSearch)
-            .opacity(isSearchFocused || !phoneNumber.isEmpty ? 1 : 0)
-            .frame(width: isSearchFocused || !phoneNumber.isEmpty ? 44 : 0)
+            .opacity(isSearchExpanded ? 1 : 0)
+            .frame(width: isSearchExpanded ? 44 : 0)
             .accessibilityLabel("Numarayı sorgula")
         }
         .padding(.horizontal, 12)
-        .frame(width: isSearchFocused ? 320 : 267, height: isSearchFocused ? 76 : 44)
-        .background(.white, in: .rect(cornerRadius: isSearchFocused ? 24 : 22))
-        .shadow(color: .black.opacity(isSearchFocused ? 0.10 : 0.05), radius: isSearchFocused ? 20 : 12, y: 6)
-        .animation(.spring(duration: 0.48, bounce: 0.24), value: isSearchFocused)
+        .frame(maxWidth: isSearchExpanded ? 320 : 267)
+        .frame(height: isSearchExpanded ? 76 : 44)
+        .background(.white)
+        .clipShape(.rect(cornerRadius: isSearchExpanded ? 24 : 22))
+        .shadow(color: .black.opacity(isSearchExpanded ? 0.10 : 0.05), radius: isSearchExpanded ? 20 : 12, y: 6)
+        .animation(.spring(duration: 0.48, bounce: 0.24), value: isSearchExpanded)
         .animation(.spring(duration: 0.4, bounce: 0.32), value: isReadyToSearch)
     }
 
@@ -200,6 +205,10 @@ struct HomeView: View {
 
     private var isReadyToSearch: Bool {
         phoneNumber.filter(\.isNumber).count == 10
+    }
+
+    private var isSearchExpanded: Bool {
+        isSearchFocused || !phoneNumber.isEmpty
     }
 
     private func dismissKeyboard() {

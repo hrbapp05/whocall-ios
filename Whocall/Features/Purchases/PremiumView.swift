@@ -22,6 +22,7 @@ struct PremiumView: View {
     @State private var selectedSection: PurchasePaywallSection
     @State private var showsCloseButton = false
     @State private var hasTrackedPresentation = false
+    @Namespace private var sectionPickerAnimation
 
     private let closeDelayMilliseconds: Int
     private let onClose: (() -> Void)?
@@ -37,14 +38,15 @@ struct PremiumView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            sectionPicker
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color(red: 0.97, green: 0.98, blue: 1))
-                .zIndex(10)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                paywallHero
 
-            ScrollView(showsIndicators: false) {
+                sectionPicker
+                    .padding(.horizontal, 44)
+                    .padding(.top, 2)
+                    .padding(.bottom, 2)
+
                 Group {
                     switch selectedSection {
                     case .subscriptions:
@@ -55,7 +57,6 @@ struct PremiumView: View {
                 }
                 .id(selectedSection)
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
-                .padding(.top, 8)
             }
         }
         .background(Color(red: 0.97, green: 0.98, blue: 1).ignoresSafeArea())
@@ -127,38 +128,75 @@ struct PremiumView: View {
     }
 
     private var sectionPicker: some View {
-        Picker("Satın alma türü", selection: $selectedSection) {
+        HStack(spacing: 0) {
             ForEach(PurchasePaywallSection.allCases) { section in
-                Text(section.title).tag(section)
+                Button {
+                    withAnimation(.spring(duration: 0.38, bounce: 0.18)) {
+                        selectedSection = section
+                    }
+                } label: {
+                    Text(section.title)
+                        .font(.subheadline.weight(selectedSection == section ? .semibold : .regular))
+                        .foregroundStyle(selectedSection == section ? .white : .secondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background {
+                            if selectedSection == section {
+                                Capsule()
+                                    .fill(DesignTokens.ColorToken.brandBlue)
+                                    .matchedGeometryEffect(id: "purchase-section", in: sectionPickerAnimation)
+                            }
+                        }
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
             }
         }
-        .pickerStyle(.segmented)
-        .animation(.easeInOut(duration: 0.24), value: selectedSection)
+        .padding(4)
+        .background(DesignTokens.ColorToken.brandBlue.opacity(0.07), in: .capsule)
+        .overlay {
+            Capsule()
+                .stroke(DesignTokens.ColorToken.brandBlue.opacity(0.08), lineWidth: 1)
+        }
+        .frame(maxWidth: 284)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Satın alma türü")
         .accessibilityHint("Abonelik ve kredi seçenekleri arasında geçiş yapar")
+    }
+
+    @ViewBuilder
+    private var paywallHero: some View {
+        switch selectedSection {
+        case .subscriptions:
+            premiumHero
+                .figmaEntrance(delay: 0.04, distance: 10)
+        case .credits:
+            creditHero
+                .figmaEntrance(delay: 0.04, distance: 10)
+        }
     }
 
     private var subscriptionContent: some View {
         VStack(spacing: 0) {
-            premiumHero
-                .figmaEntrance(delay: 0.04, distance: 14)
-
             Text("Premium ol")
-                .font(.body)
-                .padding(.top, 8)
+                .font(.subheadline)
+                .padding(.top, 12)
             HStack(spacing: 4) {
                 Text("Daha Fazlasını")
                 Text("Keşfet!").foregroundStyle(DesignTokens.ColorToken.brandBlue)
             }
-            .font(.title2.weight(.bold))
-            .padding(.top, 4)
+            .font(.title3.weight(.bold))
+            .padding(.top, 2)
             Text("WhoCall Premium ile tüm bilgilerin kilidini açın.")
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.top, 4)
+                .padding(.top, 3)
 
-            benefits.padding(.top, 22)
+            benefits.padding(.top, 12)
 
-            VStack(spacing: 16) {
+            VStack(spacing: 10) {
                 plan(
                     0,
                     "Haftalık Premium",
@@ -174,47 +212,44 @@ struct PremiumView: View {
                     suffix: "/ay"
                 )
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 24)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
 
             purchaseActions
                 .padding(.horizontal, 20)
-                .padding(.top, 28)
-                .padding(.bottom, 34)
+                .padding(.top, 18)
+                .padding(.bottom, 16)
         }
     }
 
     private var creditContent: some View {
         VStack(spacing: 0) {
-            creditHero
-                .figmaEntrance(delay: 0.04, distance: 14)
-
-            Text("Sorgular için").font(.body).padding(.top, 6)
+            Text("Sorgular için").font(.subheadline).padding(.top, 12)
             HStack(spacing: 4) {
                 Text("Kredi")
                 Text("Satın Al").foregroundStyle(DesignTokens.ColorToken.brandBlue)
             }
-            .font(.title2.weight(.bold))
-            .padding(.top, 4)
+            .font(.title3.weight(.bold))
+            .padding(.top, 2)
             Text("Abonelik gerektirmeden sorguların için kredi alabilirsin.")
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
-                .padding(.top, 6)
+                .padding(.top, 3)
 
-            VStack(spacing: 16) {
+            VStack(spacing: 10) {
                 creditOption(3, price: purchaseStore.localizedPrice(for: .credits3, fallback: "199,99"))
                 creditOption(5, price: purchaseStore.localizedPrice(for: .credits5, fallback: "249,99"))
                 creditOption(10, price: purchaseStore.localizedPrice(for: .credits10, fallback: "499,99"))
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 32)
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
 
             purchaseActions
                 .padding(.horizontal, 20)
-                .padding(.top, 28)
-                .padding(.bottom, 34)
+                .padding(.top, 18)
+                .padding(.bottom, 16)
         }
     }
 
@@ -263,20 +298,20 @@ struct PremiumView: View {
             Circle()
                 .fill(DesignTokens.ColorToken.brandBlue.opacity(0.045))
                 .overlay(Circle().stroke(DesignTokens.ColorToken.brandBlue.opacity(0.2), lineWidth: 1))
-                .frame(width: 210, height: 210)
+                .frame(width: 146, height: 146)
             Circle()
                 .stroke(DesignTokens.ColorToken.brandBlue.opacity(0.35), lineWidth: 1)
-                .frame(width: 118, height: 118)
+                .frame(width: 84, height: 84)
             Image("PremiumHero")
-                .resizable().scaledToFit().frame(width: 108, height: 108)
-                .shadow(color: DesignTokens.ColorToken.brandBlue.opacity(0.25), radius: 22, y: 10)
-                .gentleFloat(distance: 5, duration: 2.5)
-            paywallEmoji("IntroStickerLove", size: 60, x: -102, y: -49, delay: 0)
-            paywallEmoji("LoginEmoji4", size: 60, x: 103, y: -54, delay: 0.2)
-            paywallEmoji("IntroStickerCurly", size: 62, x: -75, y: 86, delay: 0.4)
-            paywallEmoji("IntroStickerLaugh", size: 62, x: 91, y: 73, delay: 0.6)
+                .resizable().scaledToFit().frame(width: 78, height: 78)
+                .shadow(color: DesignTokens.ColorToken.brandBlue.opacity(0.25), radius: 16, y: 8)
+                .gentleFloat(distance: 4, duration: 2.5)
+            paywallEmoji("IntroStickerLove", size: 43, x: -73, y: -34, delay: 0)
+            paywallEmoji("LoginEmoji4", size: 43, x: 74, y: -38, delay: 0.2)
+            paywallEmoji("IntroStickerCurly", size: 45, x: -54, y: 58, delay: 0.4)
+            paywallEmoji("IntroStickerLaugh", size: 45, x: 65, y: 51, delay: 0.6)
         }
-        .frame(height: 204)
+        .frame(height: 152)
     }
 
     private var creditHero: some View {
@@ -284,14 +319,14 @@ struct PremiumView: View {
             Circle()
                 .fill(DesignTokens.ColorToken.brandBlue.opacity(0.045))
                 .overlay(Circle().stroke(DesignTokens.ColorToken.brandBlue.opacity(0.2), lineWidth: 1))
-                .frame(width: 210, height: 210)
+                .frame(width: 146, height: 146)
             Image("CreditHero")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 210, height: 210)
-                .gentleFloat(distance: 6, duration: 2.6)
+                .frame(width: 150, height: 150)
+                .gentleFloat(distance: 4, duration: 2.6)
         }
-        .frame(height: 230)
+        .frame(height: 152)
     }
 
     private func paywallEmoji(_ name: String, size: CGFloat, x: CGFloat, y: CGFloat, delay: Double) -> some View {
@@ -316,12 +351,12 @@ struct PremiumView: View {
             Image(systemName: "checkmark")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(.white)
-                .frame(width: 32, height: 36)
+                .frame(width: 30, height: 32)
                 .background(DesignTokens.ColorToken.brandBlue, in: .rect(cornerRadius: 7))
             Text(title).font(.caption.weight(.medium)).lineLimit(1)
         }
         .padding(.horizontal, 10)
-        .frame(height: 54)
+        .frame(height: 46)
         .background(.white, in: .rect(cornerRadius: 12))
     }
 
@@ -348,8 +383,9 @@ struct PremiumView: View {
                 Image(systemName: selectedPlan == index ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(DesignTokens.ColorToken.brandBlue)
             }
-            .padding(16)
-            .frame(minHeight: index == 1 ? 90 : 78)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(minHeight: index == 1 ? 80 : 68)
             .background(.white, in: .rect(cornerRadius: 16))
             .overlay {
                 RoundedRectangle(cornerRadius: 16)
@@ -381,7 +417,7 @@ struct PremiumView: View {
                     .foregroundStyle(DesignTokens.ColorToken.brandBlue)
             }
             .padding(.horizontal, 16)
-            .frame(height: 74)
+            .frame(height: 62)
             .background(.white, in: .rect(cornerRadius: 16))
             .overlay {
                 RoundedRectangle(cornerRadius: 16)
