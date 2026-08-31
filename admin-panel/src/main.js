@@ -396,10 +396,13 @@ async function loadUsers(append) {
       action: "users",
       limit: 100,
       pageToken: append ? state.users?.nextPageToken : null,
+      includeTotal: !append,
     })).data;
     state.users = {
       items: append ? [...(state.users?.items || []), ...(result.items || [])] : (result.items || []),
       nextPageToken: result.nextPageToken || null,
+      totalUsers: append ? state.users?.totalUsers :
+        (Number.isFinite(Number(result.totalUsers)) ? Number(result.totalUsers) : (result.items || []).length),
     };
     shell(usersContent());
     bindUserActions();
@@ -412,6 +415,7 @@ async function loadUsers(append) {
 
 function usersContent(loadFailed = false) {
   const items = state.users?.items || [];
+  const totalUsers = Number(state.users?.totalUsers || 0);
   const term = state.userSearch.trim().toLocaleLowerCase("tr-TR");
   const digits = state.userSearch.replace(/\D/g, "");
   const filtered = items.filter((user) => {
@@ -449,8 +453,8 @@ function usersContent(loadFailed = false) {
   const hasFilters = state.userSearch || state.userMembershipFilter !== "all" ||
     state.userCreditFilter !== "all" || state.userSort !== "joined-desc";
   const body = filtered.length ? filtered.map(userRow).join("") : `<tr><td colspan="8"><div class="table-empty"><strong>${loadFailed ? "Kullanıcılar yüklenemedi" : hasFilters ? "Eşleşen kullanıcı bulunamadı" : "Henüz doğrulanmış kullanıcı yok"}</strong><span>${loadFailed ? "Yenile düğmesiyle tekrar deneyin." : "Telefon doğrulaması tamamlanan hesaplar burada görünür."}</span></div></td></tr>`;
-  return `<section class="page-intro"><div><p class="eyebrow">DOĞRULANMIŞ HESAPLAR</p><h2>Kullanıcılar</h2><p class="muted">Telefon doğrulamasıyla giriş yapan kullanıcıları görüntüleyin ve hesaplarını yönetin.</p></div><button id="refresh-users" class="button button-secondary">Yenile</button></section>
-    <section class="panel users-panel"><form id="user-search" class="users-toolbar"><input name="search" value="${escapeHTML(state.userSearch)}" placeholder="Ad, telefon veya RevenueCat User ID ara" aria-label="Kullanıcı ara" /><button class="button button-primary">Ara</button>${state.userSearch ? `<button id="clear-user-search" class="button button-link" type="button">Aramayı temizle</button>` : ""}<span>${filtered.length} / ${items.length} kullanıcı gösteriliyor</span></form>
+  return `<section class="page-intro"><div><p class="eyebrow">DOĞRULANMIŞ HESAPLAR</p><h2>Kullanıcılar</h2><p class="muted">Telefon doğrulamasıyla giriş yapan kullanıcıları görüntüleyin ve hesaplarını yönetin.</p></div><div class="users-intro-actions"><div class="users-total-card" aria-label="Toplam doğrulanmış kullanıcı"><span>Toplam kullanıcı</span><strong>${new Intl.NumberFormat("tr-TR").format(totalUsers)}</strong><small>Telefon doğrulaması tamamlandı</small></div><button id="refresh-users" class="button button-secondary">Yenile</button></div></section>
+    <section class="panel users-panel"><form id="user-search" class="users-toolbar"><input name="search" value="${escapeHTML(state.userSearch)}" placeholder="Ad, telefon veya RevenueCat User ID ara" aria-label="Kullanıcı ara" /><button class="button button-primary">Ara</button>${state.userSearch ? `<button id="clear-user-search" class="button button-link" type="button">Aramayı temizle</button>` : ""}<span>${filtered.length} / ${items.length} yüklü kullanıcı gösteriliyor</span></form>
       <div class="users-filters">
         <label><span>Abonelik</span><select id="user-membership-filter"><option value="all" ${state.userMembershipFilter === "all" ? "selected" : ""}>Tümü</option><option value="premium" ${state.userMembershipFilter === "premium" ? "selected" : ""}>Premium</option><option value="standard" ${state.userMembershipFilter === "standard" ? "selected" : ""}>Premium değil</option></select></label>
         <label><span>Kredi</span><select id="user-credit-filter"><option value="all" ${state.userCreditFilter === "all" ? "selected" : ""}>Tümü</option><option value="zero" ${state.userCreditFilter === "zero" ? "selected" : ""}>0 kredi</option><option value="1-5" ${state.userCreditFilter === "1-5" ? "selected" : ""}>1–5 kredi</option><option value="6-20" ${state.userCreditFilter === "6-20" ? "selected" : ""}>6–20 kredi</option><option value="21-plus" ${state.userCreditFilter === "21-plus" ? "selected" : ""}>21+ kredi</option></select></label>

@@ -3,6 +3,67 @@
   overflow: hidden;
 }
 
+.users-intro-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.users-total-card {
+  position: relative;
+  min-width: 210px;
+  padding: 14px 58px 14px 17px;
+  overflow: hidden;
+  border: 1px solid #d9e5ff;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffffff, #eef4ff);
+  box-shadow: 0 9px 26px #155cff12;
+}
+
+.users-total-card::after {
+  content: "♙";
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: #dfeaff;
+  color: var(--blue);
+  font-size: 18px;
+  font-weight: 850;
+  transform: translateY(-50%);
+}
+
+.users-total-card span,
+.users-total-card small,
+.users-total-card strong {
+  display: block;
+}
+
+.users-total-card span {
+  color: #61708a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.users-total-card strong {
+  margin-top: 3px;
+  color: #17233b;
+  font-size: 25px;
+  letter-spacing: -.04em;
+}
+
+.users-total-card small {
+  margin-top: 2px;
+  color: #8794a8;
+  font-size: 9px;
+}
+
 .users-toolbar {
   display: flex;
   align-items: center;
@@ -132,6 +193,15 @@
 }
 
 @media (max-width: 760px) {
+  .users-intro-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .users-total-card {
+    width: 100%;
+  }
+
   .users-toolbar {
     align-items: stretch;
     flex-wrap: wrap;

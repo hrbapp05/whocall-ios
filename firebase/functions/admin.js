@@ -142,6 +142,19 @@ function accountPurchaseSummary(data, fallbackRevenueCatAppUserID = null) {
   };
 }
 
+async function countPhoneUsers(auth, firstPage) {
+  let totalUsers = firstPage.users.reduce((count, user) =>
+    count + (normalizePhone(user.phoneNumber) ? 1 : 0), 0);
+  let pageToken = firstPage.pageToken;
+  while (pageToken) {
+    const page = await auth.listUsers(1000, pageToken);
+    totalUsers += page.users.reduce((count, user) =>
+      count + (normalizePhone(user.phoneNumber) ? 1 : 0), 0);
+    pageToken = page.pageToken;
+  }
+  return totalUsers;
+}
+
 function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsError, hmacKey}) {
   function requireAdmin(request) {
     if (!request.auth || request.auth.token.whoCallAdmin !== true) {
@@ -354,7 +367,7 @@ function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsEr
     };
   }
 
-  async function users(limit, pageToken) {
+  async function users(limit, pageToken, includeTotal) {
     const safeLimit = Math.min(100, Math.max(10, Number(limit) || 50));
     const safePageToken = cleanText(pageToken, 1, 2000) || undefined;
     const result = await auth.listUsers(safeLimit, safePageToken);
@@ -367,7 +380,7 @@ function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsEr
       db.getAll(...contexts.map((context) => context.profile)),
       db.getAll(...contexts.map((context) => context.benefits)),
     ]) : [[], []];
-    return {
+    const response = {
       items: phoneUsers.map(({user, phone}, index) => {
         const profile = profiles[index].data() || {};
         const benefit = benefits[index].data() || {};
@@ -393,6 +406,10 @@ function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsEr
       }),
       nextPageToken: result.pageToken || null,
     };
+    if (includeTotal === true) {
+      response.totalUsers = await countPhoneUsers(auth, result);
+    }
+    return response;
   }
 
   async function audits(limit) {
@@ -407,7 +424,9 @@ function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsEr
     const action = request.data && request.data.action;
     if (action === "overview") return overview();
     if (action === "phone") return phoneDetails(request.data.phone);
-    if (action === "users") return users(request.data.limit, request.data.pageToken);
+    if (action === "users") {
+      return users(request.data.limit, request.data.pageToken, request.data.includeTotal);
+    }
     if (action === "reports") return reports(request.data.limit);
     if (action === "audits") return audits(request.data.limit);
     if (action === "app-config") return appConfiguration();
@@ -850,6 +869,7 @@ function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsEr
 module.exports = {
   DEFAULT_APP_CONFIGURATION,
   accountPurchaseSummary,
+  countPhoneUsers,
   createAdminService,
   isMissingIndexError,
   isPremiumActive,

@@ -5,10 +5,36 @@ const assert = require("node:assert/strict");
 const {
   DEFAULT_APP_CONFIGURATION,
   accountPurchaseSummary,
+  countPhoneUsers,
   isMissingIndexError,
   newestFirst,
   publicAppConfiguration,
 } = require("../admin");
+
+test("counts only phone-verified users across every Firebase Auth page", async () => {
+  const requestedPages = [];
+  const auth = {
+    async listUsers(limit, pageToken) {
+      requestedPages.push({limit, pageToken});
+      return {
+        users: [
+          {phoneNumber: "+905551112233"},
+          {email: "email-only@example.com"},
+        ],
+        pageToken: null,
+      };
+    },
+  };
+  const total = await countPhoneUsers(auth, {
+    users: [
+      {phoneNumber: "+905555555555"},
+      {phoneNumber: "invalid"},
+    ],
+    pageToken: "page-2",
+  });
+  assert.equal(total, 2);
+  assert.deepEqual(requestedPages, [{limit: 1000, pageToken: "page-2"}]);
+});
 
 test("combines purchased and promotional credits without treating the snapshot as an entitlement", () => {
   const updatedAt = new Date("2026-08-30T12:00:00.000Z");

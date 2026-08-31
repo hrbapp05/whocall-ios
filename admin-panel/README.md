@@ -8,7 +8,7 @@ Railway üzerinde çalışan yönetim arayüzüdür. Tarayıcı yalnızca Fireba
 - İçerik moderasyonu için aynı claim kabul edilir; mevcut `communityModerator` yetkisi korunur.
 - Telefon numarası denetim kayıtlarına yazılmaz. Kayıt kimliği anahtarlı HMAC ile oluşturulur.
 - Panel promosyon premium ve promosyon kredisi yönetir. App Store aboneliğini iptal etmez ve satın alınmış tüketilebilir krediyi değiştirmez; uygulamadan gelen son satın alma özeti yalnızca görüntülenir.
-- `Kullanıcılar` ekranı yalnızca telefon doğrulaması tamamlanmış Firebase Authentication hesaplarını listeler. Ad, telefon veya RevenueCat App User ID ile arama; abonelik/kredi filtresi ve üyelik tarihi/kredi/son giriş sıralaması sağlar. Tam numara yalnızca yetkili admin oturumuna döner.
+- `Kullanıcılar` ekranı yalnızca telefon doğrulaması tamamlanmış Firebase Authentication hesaplarını listeler ve tüm sayfalar genelindeki gerçek toplam kullanıcı sayısını gösterir. Ad, telefon veya RevenueCat App User ID ile arama; abonelik/kredi filtresi ve üyelik tarihi/kredi/son giriş sıralaması sağlar. Tam numara yalnızca yetkili admin oturumuna döner.
 - Kullanıcı hesabı bu ekrandan geçici olarak devre dışı bırakılabilir veya yeniden etkinleştirilebilir; diğer profil ve hak işlemleri `Yönet` düğmesiyle numara ekranında açılır.
 - `Ayarlar ve Kampanyalar` ekranından başlangıç kredisi, kayıt sonrası paywall, tekil/toplu promosyon kredi, promosyon Premium ve push bildirimleri yönetilir.
 - Toplu işlemler gönderilmeden önce açık onay ister ve sonuç sayıları denetim kaydına yazılır.
