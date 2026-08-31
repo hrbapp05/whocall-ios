@@ -1,10 +1,13 @@
 import SwiftUI
+import StoreKit
 
 struct HomeFlowView: View {
     let onVisibilityRequired: () -> Void
     @Environment(PurchaseStore.self) private var purchaseStore
     @Environment(RecentLookupStore.self) private var recentLookupStore
+    @Environment(\.requestReview) private var requestReview
     @State private var path: [HomeRoute] = []
+    @State private var hasPendingReviewRequest = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -19,6 +22,16 @@ struct HomeFlowView: View {
                 destination(route)
             }
         }
+        .task(id: shouldRequestReviewOnHome) {
+            guard shouldRequestReviewOnHome else { return }
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, path.isEmpty,
+                  ReviewPromptStore.canRequestAfterFirstPromoLookup()
+            else { return }
+            ReviewPromptStore.markFirstPromoLookupRequest()
+            hasPendingReviewRequest = false
+            requestReview()
+        }
     }
 
     @ViewBuilder
@@ -31,10 +44,19 @@ struct HomeFlowView: View {
                     switch outcome {
                     case let .found(owner):
                         Task { @MainActor in
+                            let promotionalBalanceBeforeLookup = purchaseStore.promotionalCreditBalance
+                            let isUsingFirstPromotionalCredit = !purchaseStore.isPremium &&
+                                purchaseStore.purchasedCreditBalance == 0 &&
+                                promotionalBalanceBeforeLookup > 0 &&
+                                ReviewPromptStore.canRequestAfterFirstPromoLookup()
                             guard await purchaseStore.authorizeLookupResult() else {
                                 if !path.isEmpty { path.removeLast() }
                                 path.append(.premium)
                                 return
+                            }
+                            if isUsingFirstPromotionalCredit &&
+                                purchaseStore.promotionalCreditBalance < promotionalBalanceBeforeLookup {
+                                hasPendingReviewRequest = true
                             }
                             recentLookupStore.record(owner: owner)
                             replaceLookup(with: .result(owner))
@@ -86,6 +108,11 @@ struct HomeFlowView: View {
         // Replace the progress screen so Back never replays the scanner.
         if !path.isEmpty { path.removeLast() }
         path.append(route)
+    }
+
+    private var shouldRequestReviewOnHome: Bool {
+        hasPendingReviewRequest && path.isEmpty &&
+            ReviewPromptStore.canRequestAfterFirstPromoLookup()
     }
 }
 
