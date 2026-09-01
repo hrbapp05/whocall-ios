@@ -36,6 +36,14 @@ enum ProfileNameValidator {
         validationMessage(for: value, field: field) == nil ? normalized(value) : nil
     }
 
+    static func isCompleteDisplayName(_ value: String?) -> Bool {
+        let parts = normalized(value ?? "").split(whereSeparator: \.isWhitespace)
+        guard let firstName = parts.first, parts.count >= 2 else { return false }
+        let lastName = parts.dropFirst().joined(separator: " ")
+        return validated(String(firstName), field: .firstName) != nil &&
+            validated(lastName, field: .lastName) != nil
+    }
+
     static func validationMessage(for value: String, field: ProfileNameField) -> String? {
         let name = normalized(value)
         let length = name.count

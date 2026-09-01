@@ -126,9 +126,9 @@ final class AppSession {
     }
 
     var requiresProfileCompletion: Bool {
-        let name = ProfileServiceFactory.live().currentDisplayName?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return name?.split(separator: " ").count ?? 0 < 2
+        !ProfileNameValidator.isCompleteDisplayName(
+            ProfileServiceFactory.live().currentDisplayName
+        )
     }
 }
 
@@ -140,6 +140,7 @@ struct AppRootView: View {
     @State private var recentLookupStore = RecentLookupStore()
     @State private var communityStore = CommunityStore()
     @State private var postAuthenticationFlow: PostAuthenticationPresentation?
+    @State private var profileCompletionRefresh = 0
     @State private var legalAcceptanceRefresh = 0
     @State private var requiredAppUpdate: RequiredAppUpdate?
 
@@ -173,6 +174,10 @@ struct AppRootView: View {
                             )
                         }
                     }
+                } else if requiresProfileCompletion {
+                    ProfileCompletionView {
+                        profileCompletionRefresh += 1
+                    }
                 } else if requiresCurrentLegalAcceptance {
                     LegalConsentGateView {
                         LegalAcceptancePreference.markPending()
@@ -201,6 +206,7 @@ struct AppRootView: View {
                 requiresProfileCompletion: presentation.requiresProfileCompletion,
                 showsPaywall: presentation.showsPaywall
             ) {
+                profileCompletionRefresh += 1
                 postAuthenticationFlow = nil
             }
             .environment(purchaseStore)
@@ -283,6 +289,11 @@ struct AppRootView: View {
         _ = legalAcceptanceRefresh
         guard let userID = session.userID else { return false }
         return !LegalAcceptancePreference.hasAcceptedCurrent(userID: userID)
+    }
+
+    private var requiresProfileCompletion: Bool {
+        _ = profileCompletionRefresh
+        return session.isAuthenticated && session.requiresProfileCompletion
     }
 }
 

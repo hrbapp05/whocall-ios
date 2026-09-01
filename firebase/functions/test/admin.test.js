@@ -7,6 +7,7 @@ const {
   accountPurchaseSummary,
   countPhoneUsers,
   isMissingIndexError,
+  listPhoneUsersNewest,
   newestFirst,
   publicAppConfiguration,
 } = require("../admin");
@@ -34,6 +35,44 @@ test("counts only phone-verified users across every Firebase Auth page", async (
   });
   assert.equal(total, 2);
   assert.deepEqual(requestedPages, [{limit: 1000, pageToken: "page-2"}]);
+});
+
+test("lists all phone users with the newest Firebase Auth member first", async () => {
+  const requestedPages = [];
+  const auth = {
+    async listUsers(limit, pageToken) {
+      requestedPages.push({limit, pageToken});
+      if (!pageToken) {
+        return {
+          users: [
+            {
+              uid: "older",
+              phoneNumber: "+905551112233",
+              metadata: {creationTime: "2026-08-20T09:00:00.000Z"},
+            },
+            {uid: "email-only", email: "email-only@example.com"},
+          ],
+          pageToken: "page-2",
+        };
+      }
+      return {
+        users: [{
+          uid: "newer",
+          phoneNumber: "+905555555555",
+          metadata: {creationTime: "2026-08-31T12:00:00.000Z"},
+        }],
+        pageToken: null,
+      };
+    },
+  };
+
+  const users = await listPhoneUsersNewest(auth);
+
+  assert.deepEqual(users.map(({user}) => user.uid), ["newer", "older"]);
+  assert.deepEqual(requestedPages, [
+    {limit: 1000, pageToken: undefined},
+    {limit: 1000, pageToken: "page-2"},
+  ]);
 });
 
 test("combines purchased and promotional credits without treating the snapshot as an entitlement", () => {

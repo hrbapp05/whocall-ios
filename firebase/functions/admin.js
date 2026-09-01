@@ -155,6 +155,37 @@ async function countPhoneUsers(auth, firstPage) {
   return totalUsers;
 }
 
+function authUserCreationTime(user) {
+  return Date.parse(user && user.metadata && user.metadata.creationTime || "") || 0;
+}
+
+async function listPhoneUsersNewest(auth) {
+  const phoneUsers = [];
+  let pageToken;
+  do {
+    const page = await auth.listUsers(1000, pageToken);
+    for (const user of page.users) {
+      const phone = normalizePhone(user.phoneNumber);
+      if (phone) phoneUsers.push({user, phone});
+    }
+    pageToken = page.pageToken;
+  } while (pageToken);
+
+  return phoneUsers.sort((left, right) => {
+    const timeDifference = authUserCreationTime(right.user) - authUserCreationTime(left.user);
+    if (timeDifference !== 0) return timeDifference;
+    return String(left.user.uid || "").localeCompare(String(right.user.uid || ""));
+  });
+}
+
+function userPageOffset(value) {
+  if (!value) return 0;
+  const match = /^offset:(\d+)$/.exec(value);
+  if (!match) return 0;
+  const offset = Number(match[1]);
+  return Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
+}
+
 function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsError, hmacKey}) {
   function requireAdmin(request) {
     if (!request.auth || request.auth.token.whoCallAdmin !== true) {
@@ -369,12 +400,10 @@ function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsEr
 
   async function users(limit, pageToken, includeTotal) {
     const safeLimit = Math.min(100, Math.max(10, Number(limit) || 50));
-    const safePageToken = cleanText(pageToken, 1, 2000) || undefined;
-    const result = await auth.listUsers(safeLimit, safePageToken);
-    const phoneUsers = result.users.map((user) => ({
-      user,
-      phone: normalizePhone(user.phoneNumber),
-    })).filter((entry) => entry.phone);
+    const safePageToken = cleanText(pageToken, 1, 100) || null;
+    const offset = userPageOffset(safePageToken);
+    const allPhoneUsers = await listPhoneUsersNewest(auth);
+    const phoneUsers = allPhoneUsers.slice(offset, offset + safeLimit);
     const contexts = phoneUsers.map((entry) => contextForPhone(entry.phone));
     const [profiles, benefits] = contexts.length ? await Promise.all([
       db.getAll(...contexts.map((context) => context.profile)),
@@ -385,29 +414,37 @@ function createAdminService({db, auth, messaging, FieldValue, Timestamp, HttpsEr
         const profile = profiles[index].data() || {};
         const benefit = benefits[index].data() || {};
         const authNames = namesFromDisplayName(user.displayName);
-        const profilePublished = profiles[index].exists || Boolean(authNames);
-        const firstName = profile.firstName || authNames && authNames.firstName || "";
-        const lastName = profile.lastName || authNames && authNames.lastName || "";
+        const profileFirstName = normalizeName(profile.firstName);
+        const profileLastName = normalizeName(profile.lastName);
+        const profileNames = profileFirstName && profileLastName ? {
+          firstName: profileFirstName,
+          lastName: profileLastName,
+        } : null;
+        const names = profileNames || authNames;
+        const profileComplete = Boolean(names);
+        const profilePublished = profileComplete && (profiles[index].exists || Boolean(authNames));
         return {
           uid: user.uid,
           ...accountPurchaseSummary(benefit, user.uid),
           phone: `+${phone}`,
           phoneMasked: maskedPhone(phone),
-          displayName: profile.displayName || user.displayName || "İsimsiz kullanıcı",
-          firstName,
-          lastName,
+          displayName: names ? `${names.firstName} ${names.lastName}` : "Profil tamamlanmadı",
+          firstName: names && names.firstName || "",
+          lastName: names && names.lastName || "",
           isVisible: profile.isVisible !== false,
           disabled: user.disabled === true,
+          profileComplete,
           profilePublished,
           promotionalPremiumExpiresAt: serializeTimestamp(benefit.promotionalPremiumExpiresAt),
           createdAt: user.metadata && user.metadata.creationTime || null,
           lastSignInAt: user.metadata && user.metadata.lastSignInTime || null,
         };
       }),
-      nextPageToken: result.pageToken || null,
+      nextPageToken: offset + phoneUsers.length < allPhoneUsers.length ?
+        `offset:${offset + phoneUsers.length}` : null,
     };
     if (includeTotal === true) {
-      response.totalUsers = await countPhoneUsers(auth, result);
+      response.totalUsers = allPhoneUsers.length;
     }
     return response;
   }
@@ -873,6 +910,7 @@ module.exports = {
   createAdminService,
   isMissingIndexError,
   isPremiumActive,
+  listPhoneUsersNewest,
   newestFirst,
   publicAppConfiguration,
 };

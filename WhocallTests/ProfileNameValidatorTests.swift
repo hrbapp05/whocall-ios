@@ -21,4 +21,12 @@ struct ProfileNameValidatorTests {
         #expect(ProfileNameValidator.validated("Aaaaa", field: .firstName) == nil)
         #expect(ProfileNameValidator.validated("Qwerty", field: .firstName) == nil)
     }
+
+    @Test func requiresACompleteValidDisplayName() {
+        #expect(ProfileNameValidator.isCompleteDisplayName("Göktuğ Solmaz"))
+        #expect(ProfileNameValidator.isCompleteDisplayName("Nur Su Öztürk"))
+        #expect(!ProfileNameValidator.isCompleteDisplayName(nil))
+        #expect(!ProfileNameValidator.isCompleteDisplayName("Göktuğ"))
+        #expect(!ProfileNameValidator.isCompleteDisplayName("Test Kullanıcı"))
+    }
 }
