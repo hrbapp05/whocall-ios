@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct ResultView: View {
+    @Environment(CommunityStore.self) private var communityStore
     let owner: PhoneOwner
     let onDetails: () -> Void
+    let onNewLookup: () -> Void
+    let onCredits: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,7 +29,7 @@ struct ResultView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
 
-            Button("Yeni Sorgu Yap") { }
+            Button("Yeni Sorgu Yap", action: onNewLookup)
                 .buttonStyle(PrimaryButtonStyle(background: DesignTokens.ColorToken.brandBlue))
                 .padding(.horizontal, 20)
                 .padding(.top, 14)
@@ -35,7 +38,14 @@ struct ResultView: View {
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Sonuç Bulundu")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { ToolbarCreditBadge() } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: onCredits) { ToolbarCreditBadge() }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Kredi yükle")
+            }
+        }
+        .task { await communityStore.refresh(for: owner.phoneNumber) }
     }
 
     private var displayNumber: String {
@@ -48,12 +58,12 @@ struct ResultView: View {
     private var resultCard: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Text(String(owner.displayName.prefix(1)).uppercased())
+                Text(String(safeName.prefix(1)).uppercased())
                     .font(.subheadline.weight(.bold))
                     .frame(width: 50, height: 50)
                     .background(DesignTokens.ColorToken.mint, in: .circle)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("\(owner.displayName) Olarak Biliniyor").font(.subheadline.weight(.bold))
+                    Text("\(safeName) Olarak Biliniyor").font(.subheadline.weight(.bold))
                     Text("Muhtemel Kişi").font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -61,15 +71,25 @@ struct ResultView: View {
             }
             .padding(.vertical, 12)
             Divider()
-            HStack { Label("Topluluk Yorumları", systemImage: "bubble.left"); Spacer(); Text("12") }
+            HStack { Label("Topluluk Yorumları", systemImage: "bubble.left"); Spacer(); Text("\(comments.count)") }
                 .frame(height: 44)
             Divider()
-            HStack(spacing: 8) {
-                Label("Etiketler", systemImage: "number")
-                Spacer(minLength: 2)
-                FigmaTag(title: "Komşu")
-                FigmaTag(title: "Kankam")
-                FigmaTag(title: "Tesisatçı")
+            HStack(spacing: 6) {
+                HStack(spacing: 5) {
+                    Image(systemName: "number")
+                    Text("Etiketler")
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(2)
+                Spacer(minLength: 0)
+                if tags.isEmpty {
+                    Text("Henüz etiket yok")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(tags.prefix(2)), id: \.self) { compactTag($0) }
+                    if tags.count > 2 { compactTag("+\(tags.count - 2)") }
+                }
             }
             .frame(height: 48)
         }
@@ -78,5 +98,22 @@ struct ResultView: View {
         .background(.white, in: .rect(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color(.separator).opacity(0.28)))
         .shadow(color: .black.opacity(0.035), radius: 14, y: 5)
+    }
+
+    private var safeName: String {
+        owner.privacySafe.displayName
+    }
+
+    private var comments: [Comment] { communityStore.comments(for: owner.phoneNumber) }
+    private var tags: [String] { communityStore.tags(for: owner.phoneNumber) }
+
+    private func compactTag(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 10))
+            .foregroundStyle(DesignTokens.ColorToken.brandBlue)
+            .padding(.horizontal, 7)
+            .frame(height: 24)
+            .background(DesignTokens.ColorToken.brandBlue.opacity(0.11), in: .capsule)
+            .fixedSize(horizontal: true, vertical: false)
     }
 }

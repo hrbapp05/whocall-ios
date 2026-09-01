@@ -11,26 +11,16 @@ struct OnboardingHero: View {
             Image(page.mockupAsset)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 267)
-                .position(x: 201, y: 456.5)
-                .shadow(color: .black.opacity(0.16), radius: 8, y: 5)
-                .figmaEntrance(delay: 0.02, distance: 22)
+                .frame(width: 273, height: 561)
+                .position(x: 201, y: 446.5)
+                .shadow(color: .black.opacity(0.12), radius: 13, y: 7)
+                .popEntrance(delay: 0.04, initialScale: 0.84)
+                .gentleFloat(distance: 2.5, duration: 3.1)
                 .zIndex(1)
 
-            VStack(spacing: 0) {
-                LinearGradient(
-                    colors: [.clear, .white.opacity(0.78), .white],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 210)
-
-                Color.white
-            }
-            .frame(width: 402, height: 431)
-            .position(x: 201, y: 658.5)
-            .allowsHitTesting(false)
-            .zIndex(2)
+            phoneFade
+                .allowsHitTesting(false)
+                .zIndex(2)
 
             foregroundContent
                 .zIndex(3)
@@ -39,6 +29,22 @@ struct OnboardingHero: View {
         .clipped()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(page.title.replacingOccurrences(of: "\n", with: " ")))
+    }
+
+    private var phoneFade: some View {
+        return VStack(spacing: 0) {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .white, location: 0.5),
+                    .init(color: .white, location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .frame(width: 402, height: 546)
+        .position(x: 201, y: 601)
     }
 
     @ViewBuilder
@@ -95,16 +101,16 @@ struct OnboardingHero: View {
             recentCard
                 .position(x: 201, y: 501.5)
                 .rotationEffect(.degrees(2.1))
-                .figmaEntrance(delay: 0.22, distance: 24)
+                .popEntrance(delay: 0.24, initialScale: 0.74)
                 .gentleFloat(distance: 3, duration: 2.5, delay: 0.3)
         case .scan:
             scannerCard
                 .position(x: 201, y: 518)
-                .figmaEntrance(delay: 0.22, distance: 20)
+                .popEntrance(delay: 0.24, initialScale: 0.78)
         case .details:
             detailCard
                 .position(x: 201, y: 455)
-                .figmaEntrance(delay: 0.20, distance: 24)
+                .popEntrance(delay: 0.22, initialScale: 0.76)
         }
     }
 
@@ -123,7 +129,7 @@ struct OnboardingHero: View {
             .rotationEffect(.degrees(rotation))
             .position(x: x, y: y)
             .gentleFloat(distance: 5, duration: 2.1 + delay, delay: delay)
-            .figmaEntrance(delay: 0.08 + delay / 3, distance: 12)
+            .popEntrance(delay: 0.08 + delay / 3, initialScale: 0.05)
     }
 
     private var recentCard: some View {

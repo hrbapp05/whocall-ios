@@ -1,70 +1,226 @@
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
+    @Environment(RecentLookupStore.self) private var recentLookupStore
     let onSearch: (String) -> Void
     let onRecord: (SearchRecord) -> Void
     let onPremium: () -> Void
+    let onCredits: () -> Void
+    let onVisibilityRequired: () -> Void
+    @FocusState private var isSearchFocused: Bool
     @State private var phoneNumber = ""
+    @State private var isVisibilityRequiredPresented = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                HStack {
-                    Text("Hoş Geldin, Göktuğ 👋🏻")
-                        .font(.headline)
-                    Spacer()
-                    CreditBadge()
-                }
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+                .onTapGesture { dismissKeyboard() }
 
-                searchField
-
-                Button(action: onPremium) {
+            ScrollView {
+                VStack(spacing: 16) {
                     HStack {
-                        VStack(alignment: .leading) {
-                            Text("Hemen Sende Premium Ol!").font(.headline)
-                            Text("Premium abonelik alarak sınırsız sorgulama yapabilirsin!").font(.caption)
-                        }
+                        Text(greeting)
+                            .font(.headline)
                         Spacer()
-                        Text("Pro Ol").font(.caption.weight(.bold)).padding(10).background(.black, in: .capsule)
-                    }
-                    .foregroundStyle(.white)
-                    .padding()
-                    .background(DesignTokens.ColorToken.brandBlue, in: .rect(cornerRadius: 18))
-                }
-                .buttonStyle(.plain)
-
-                HStack {
-                    Text("Son Aramalar").font(.headline)
-                    Spacer()
-                    Text("Tümünü Gör").foregroundStyle(DesignTokens.ColorToken.brandBlue)
-                }
-
-                VStack(spacing: 0) {
-                    ForEach(PreviewData.records) { record in
-                        Button { onRecord(record) } label: { SearchRecordRow(record: record).padding(.vertical, 12) }
+                        Button(action: onCredits) { CreditBadge() }
                             .buttonStyle(.plain)
-                        if record.id != PreviewData.records.last?.id { Divider() }
+                            .accessibilityHint("Kredi yükleme ekranını açar")
                     }
+
+                    searchField
+                        .frame(maxWidth: .infinity)
+
+                    premiumCard
+
+                    HStack {
+                        Text("Son Sorgular").font(.headline)
+                        Spacer()
+                        Text("Tümünü Gör").foregroundStyle(DesignTokens.ColorToken.brandBlue)
+                    }
+
+                    recentLookups
                 }
-                .padding(.horizontal)
-                .background(.background, in: .rect(cornerRadius: 20))
+                .padding(20)
+                .frame(minHeight: UIScreen.main.bounds.height - 120, alignment: .top)
+                .background {
+                    Color.clear
+                        .contentShape(.rect)
+                        .onTapGesture { dismissKeyboard() }
+                }
             }
-            .padding(20)
+            .scrollDismissesKeyboard(.interactively)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
         .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: phoneNumber) { _, newValue in
+            let digits = String(newValue.filter(\.isNumber).suffix(10))
+            if digits != newValue { phoneNumber = digits }
+        }
+        .task {
+            _ = await ProfileVisibilitySynchronizer.synchronize()
+        }
+        .alert("Görünürlük Gerekli", isPresented: $isVisibilityRequiredPresented) {
+            Button("Vazgeç", role: .cancel) {}
+            Button("Profile Git", action: onVisibilityRequired)
+        } message: {
+            Text("Görünürlüğünüz kapalıyken başka kullanıcıları sorgulayamazsınız. Devam etmek için profilinizden arama görünürlüğünü açın.")
+        }
     }
 
     private var searchField: some View {
-        HStack {
-            Image("TurkeyFlag").resizable().frame(width: 24, height: 24)
+        HStack(spacing: 10) {
+            Image("TurkeyFlag")
+                .resizable()
+                .frame(width: 24, height: 24)
+
             TextField("Numara Tuşla", text: $phoneNumber)
+                .font(.system(size: 17, weight: isSearchFocused ? .semibold : .regular))
                 .keyboardType(.phonePad)
-            Button { onSearch(phoneNumber) } label: { Image(systemName: "magnifyingglass") }
-                .disabled(phoneNumber.filter(\.isNumber).count < 10)
+                .textContentType(.telephoneNumber)
+                .focused($isSearchFocused)
+                .minimumScaleFactor(0.8)
+
+            Button {
+                guard isReadyToSearch else { return }
+                let profile = ProfileServiceFactory.live()
+                guard ProfileVisibilityPreference.isVisible(userID: profile.currentUserID) else {
+                    dismissKeyboard()
+                    withAnimation(.spring(duration: 0.4, bounce: 0.2)) {
+                        phoneNumber = ""
+                    }
+                    isVisibilityRequiredPresented = true
+                    return
+                }
+                dismissKeyboard()
+                let numberToSearch = phoneNumber
+                phoneNumber = ""
+                onSearch(numberToSearch)
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(isReadyToSearch ? DesignTokens.ColorToken.brandBlue : Color(uiColor: .systemGray6))
+                        .scaleEffect(isReadyToSearch ? 1 : 0.76)
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(isReadyToSearch ? .white : .black)
+                }
+                .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .disabled(!isReadyToSearch)
+            .opacity(isSearchExpanded ? 1 : 0)
+            .frame(width: isSearchExpanded ? 44 : 0)
+            .accessibilityLabel("Numarayı sorgula")
         }
-        .padding()
-        .background(.background, in: .capsule)
-        .shadow(color: .black.opacity(0.05), radius: 12, y: 4)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: isSearchExpanded ? 320 : 267)
+        .frame(height: isSearchExpanded ? 76 : 44)
+        .background(.white)
+        .clipShape(.rect(cornerRadius: isSearchExpanded ? 24 : 22))
+        .shadow(color: .black.opacity(isSearchExpanded ? 0.10 : 0.05), radius: isSearchExpanded ? 20 : 12, y: 6)
+        .animation(.spring(duration: 0.48, bounce: 0.24), value: isSearchExpanded)
+        .animation(.spring(duration: 0.4, bounce: 0.32), value: isReadyToSearch)
+    }
+
+    init(
+        onSearch: @escaping (String) -> Void,
+        onRecord: @escaping (SearchRecord) -> Void,
+        onPremium: @escaping () -> Void,
+        onCredits: @escaping () -> Void,
+        onVisibilityRequired: @escaping () -> Void = {}
+    ) {
+        self.onSearch = onSearch
+        self.onRecord = onRecord
+        self.onPremium = onPremium
+        self.onCredits = onCredits
+        self.onVisibilityRequired = onVisibilityRequired
+    }
+
+    private var premiumCard: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(red: 0.68, green: 0.82, blue: 0.96))
+                .frame(maxWidth: 344)
+                .frame(height: 66)
+                .offset(y: 31)
+
+            Button(action: onPremium) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Hemen Sende Premium Ol!")
+                            .font(.system(size: 16, weight: .bold))
+                        Text("Premium abonelik alarak sınırsız sorgulama yapabilirsin!")
+                            .font(.system(size: 11))
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 4)
+                    Text("Pro Ol")
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 12)
+                        .frame(height: 34)
+                        .background(.black, in: .capsule)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .frame(height: 91)
+                .background(DesignTokens.ColorToken.brandBlue, in: .rect(cornerRadius: 24))
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(height: 100)
+    }
+
+    @ViewBuilder
+    private var recentLookups: some View {
+        if recentLookupStore.records.isEmpty {
+            VStack(spacing: 8) {
+                Image(systemName: "phone.badge.checkmark")
+                    .font(.title2)
+                    .foregroundStyle(DesignTokens.ColorToken.brandBlue)
+                Text("Henüz sorgu yapmadınız")
+                    .font(.subheadline.weight(.semibold))
+                Text("Sorguladığınız numaralar burada görünür ve izin verdiğiniz rehber adlarıyla eşleştirilir.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(22)
+            .frame(maxWidth: .infinity)
+            .background(.background, in: .rect(cornerRadius: 20))
+        } else {
+            VStack(spacing: 0) {
+                ForEach(Array(recentLookupStore.records.prefix(4))) { record in
+                    Button { onRecord(record) } label: {
+                        SearchRecordRow(record: record).padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    if record.id != recentLookupStore.records.prefix(4).last?.id { Divider() }
+                }
+            }
+            .padding(.horizontal)
+            .background(.background, in: .rect(cornerRadius: 20))
+        }
+    }
+
+    private var isReadyToSearch: Bool {
+        phoneNumber.filter(\.isNumber).count == 10
+    }
+
+    private var isSearchExpanded: Bool {
+        isSearchFocused || !phoneNumber.isEmpty
+    }
+
+    private func dismissKeyboard() {
+        isSearchFocused = false
+    }
+
+    private var greeting: String {
+        let displayName = ProfileServiceFactory.live().currentDisplayName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let firstName = displayName?.split(separator: " ").first else {
+            return "Hoş Geldin 👋🏻"
+        }
+        return "Hoş Geldin, \(firstName) 👋🏻"
     }
 }

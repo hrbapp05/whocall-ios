@@ -1,24 +1,148 @@
 import Observation
 import SwiftUI
 
+#if canImport(FirebaseAuth)
+@preconcurrency import FirebaseAuth
+import FirebaseCore
+#endif
+
 @MainActor
 @Observable
 final class AppSession {
     var isAuthenticated: Bool
+    private(set) var isResolvingAuthentication: Bool
+    private(set) var userID: String?
+
+#if canImport(FirebaseAuth)
+    private var authStateHandle: AuthStateDidChangeListenerHandle?
+#endif
 
     init() {
 #if DEBUG
-        isAuthenticated = ProcessInfo.processInfo.arguments.contains("-uiTestAppShell")
+        let launchesAppShell = ProcessInfo.processInfo.arguments.contains("-uiTestAppShell")
+        isAuthenticated = launchesAppShell
+        isResolvingAuthentication = !launchesAppShell
+        userID = launchesAppShell ? "ui-test-user" : nil
 #else
         isAuthenticated = false
+        isResolvingAuthentication = true
+        userID = nil
 #endif
+    }
+
+    func start() async {
+#if canImport(FirebaseAuth)
+        guard FirebaseApp.app() != nil else {
+            clearAuthentication()
+            return
+        }
+
+        if authStateHandle == nil {
+            authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+                Task { @MainActor in
+                    guard let self else { return }
+                    guard let user else {
+                        self.clearAuthentication()
+                        return
+                    }
+
+                    // The first callback contains Firebase's cached user and can
+                    // arrive while the server-backed validation below is running.
+                    // Keep the loading state visible instead of briefly routing to
+                    // the welcome screen. OTP completion validates new users through
+                    // the explicit onAuthenticated callback.
+                    if let userID = self.userID, user.uid != userID {
+                        self.isAuthenticated = false
+                        self.userID = nil
+                        self.isResolvingAuthentication = true
+                        _ = await self.refreshValidatedCurrentUser()
+                    }
+                }
+            }
+        }
+
+        _ = await refreshValidatedCurrentUser()
+#else
+        clearAuthentication()
+#endif
+    }
+
+    @discardableResult
+    func refreshValidatedCurrentUser() async -> Bool {
+#if canImport(FirebaseAuth)
+        guard FirebaseApp.app() != nil, let candidate = Auth.auth().currentUser else {
+            clearAuthentication()
+            return false
+        }
+
+        isResolvingAuthentication = true
+
+        do {
+            try await candidate.reload()
+            guard
+                let currentUser = Auth.auth().currentUser,
+                currentUser.uid == candidate.uid,
+                let phoneNumber = currentUser.phoneNumber,
+                !phoneNumber.isEmpty
+            else {
+                signOut()
+                return false
+            }
+
+            // Keep callable Functions in sync with a phone credential that may
+            // have been linked during the immediately preceding OTP flow.
+            _ = try await currentUser.getIDToken(forcingRefresh: true)
+            isAuthenticated = true
+            isResolvingAuthentication = false
+            userID = currentUser.uid
+            return true
+        } catch {
+            // Deleted, disabled and otherwise invalid cached users must never
+            // inherit access from a previous installation or account.
+            signOut()
+            return false
+        }
+#else
+        clearAuthentication()
+        return false
+#endif
+    }
+
+    func signOut() {
+#if canImport(FirebaseAuth)
+        if FirebaseApp.app() != nil {
+            try? Auth.auth().signOut()
+        }
+#endif
+        isAuthenticated = false
+        isResolvingAuthentication = false
+        userID = nil
+    }
+
+    private func clearAuthentication() {
+        isAuthenticated = false
+        isResolvingAuthentication = false
+        userID = nil
+    }
+
+    var requiresProfileCompletion: Bool {
+        !ProfileNameValidator.isCompleteDisplayName(
+            ProfileServiceFactory.live().currentDisplayName
+        )
     }
 }
 
 struct AppRootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var session = AppSession()
     @State private var purchaseStore = PurchaseStore()
+    @State private var recentLookupStore = RecentLookupStore()
+    @State private var communityStore = CommunityStore()
+    @State private var postAuthenticationFlow: PostAuthenticationPresentation?
+    @State private var profileCompletionRefresh = 0
+    @State private var legalAcceptanceRefresh = 0
+    @State private var requiredAppUpdate: RequiredAppUpdate?
 
     private var skipsOnboardingForUITest: Bool {
 #if DEBUG
@@ -29,20 +153,124 @@ struct AppRootView: View {
     }
 
     var body: some View {
-        Group {
-            if let screen = uiTestScreen {
-                UITestShowcaseView(screen: screen)
-            } else if !hasCompletedOnboarding && !skipsOnboardingForUITest {
-                OnboardingView { hasCompletedOnboarding = true }
-            } else if !session.isAuthenticated {
-                AuthFlowView { session.isAuthenticated = true }
-            } else {
-                AppShellView { session.isAuthenticated = false }
+        ZStack {
+            Group {
+                if let screen = uiTestScreen {
+                    UITestShowcaseView(screen: screen)
+                } else if !hasCompletedOnboarding && !skipsOnboardingForUITest {
+                    OnboardingView { hasCompletedOnboarding = true }
+                } else if session.isResolvingAuthentication {
+                    SplashScreenView()
+                } else if !session.isAuthenticated {
+                    AuthFlowView {
+                        Task {
+                            guard await session.refreshValidatedCurrentUser() else { return }
+                            await purchaseStore.activateAccount(session.userID)
+                            await purchaseStore.refreshCustomerInfo()
+                            postAuthenticationFlow = PostAuthenticationPresentation.make(
+                                requiresProfileCompletion: session.requiresProfileCompletion,
+                                isPremium: purchaseStore.isPremium,
+                                showPostLoginPaywall: purchaseStore.showPostLoginPaywall
+                            )
+                        }
+                    }
+                } else if requiresProfileCompletion {
+                    ProfileCompletionView {
+                        profileCompletionRefresh += 1
+                    }
+                } else if requiresCurrentLegalAcceptance {
+                    LegalConsentGateView {
+                        LegalAcceptancePreference.markPending()
+                        try await LegalAccountServiceFactory.live().recordCurrentAcceptance()
+                        legalAcceptanceRefresh += 1
+                    } onDeclined: {
+                        LegalAcceptancePreference.clearPending()
+                        session.signOut()
+                    }
+                } else {
+                    AppShellView { session.signOut() }
+                }
+            }
+
+            if let requiredAppUpdate {
+                MandatoryAppUpdateView(update: requiredAppUpdate)
+                    .zIndex(100)
+                    .transition(.opacity)
             }
         }
         .environment(purchaseStore)
-        .task { await purchaseStore.start() }
+        .environment(recentLookupStore)
+        .environment(communityStore)
+        .fullScreenCover(item: $postAuthenticationFlow) { presentation in
+            PostAuthenticationFlowView(
+                requiresProfileCompletion: presentation.requiresProfileCompletion,
+                showsPaywall: presentation.showsPaywall
+            ) {
+                profileCompletionRefresh += 1
+                postAuthenticationFlow = nil
+            }
+            .environment(purchaseStore)
+        }
+        .task {
+            await session.start()
+            recentLookupStore.activateAccount(session.userID)
+            await purchaseStore.start(accountID: session.userID)
+            await PendingVerifiedProfileStore.retryIfNeeded()
+            _ = await ProfileVisibilitySynchronizer.synchronize()
+            await CurrentVerifiedProfileSynchronizer.synchronize()
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active, shouldCheckForAppUpdate else { return }
+            let update = await AppUpdateService().requiredUpdate()
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.25)) {
+                requiredAppUpdate = update
+            }
+        }
+        .task(id: shouldRequestMetaTracking) {
+            guard shouldRequestMetaTracking else { return }
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            await MetaAttributionService.shared.requestAuthorizationIfNeeded()
+        }
+        .task(id: shouldRegisterNotifications) {
+            guard shouldRegisterNotifications else { return }
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled, shouldRegisterNotifications else { return }
+            await NotificationRegistrationService.shared.requestAuthorizationAndRegister()
+        }
+        .onChange(of: session.userID) { _, userID in
+            recentLookupStore.activateAccount(userID)
+            Task {
+                await purchaseStore.activateAccount(userID)
+                _ = await ProfileVisibilitySynchronizer.synchronize()
+                await CurrentVerifiedProfileSynchronizer.synchronize()
+            }
+        }
         .preferredColorScheme(.light)
+    }
+
+    private var shouldRequestMetaTracking: Bool {
+        session.isAuthenticated &&
+            !session.isResolvingAuthentication &&
+            !requiresCurrentLegalAcceptance &&
+            postAuthenticationFlow == nil
+    }
+
+    private var shouldRegisterNotifications: Bool {
+        session.userID != nil &&
+            session.isAuthenticated &&
+            !session.isResolvingAuthentication &&
+            !requiresCurrentLegalAcceptance &&
+            postAuthenticationFlow == nil
+    }
+
+    private var shouldCheckForAppUpdate: Bool {
+#if DEBUG
+        false
+#else
+        uiTestScreen == nil
+#endif
     }
 
     private var uiTestScreen: String? {
@@ -56,6 +284,36 @@ struct AppRootView: View {
         nil
 #endif
     }
+
+    private var requiresCurrentLegalAcceptance: Bool {
+        _ = legalAcceptanceRefresh
+        guard let userID = session.userID else { return false }
+        return !LegalAcceptancePreference.hasAcceptedCurrent(userID: userID)
+    }
+
+    private var requiresProfileCompletion: Bool {
+        _ = profileCompletionRefresh
+        return session.isAuthenticated && session.requiresProfileCompletion
+    }
+}
+
+struct PostAuthenticationPresentation: Identifiable, Equatable {
+    let id = UUID()
+    let requiresProfileCompletion: Bool
+    let showsPaywall: Bool
+
+    static func make(
+        requiresProfileCompletion: Bool,
+        isPremium: Bool,
+        showPostLoginPaywall: Bool = true
+    ) -> Self? {
+        let showsPaywall = showPostLoginPaywall && !isPremium
+        guard showsPaywall || requiresProfileCompletion else { return nil }
+        return Self(
+            requiresProfileCompletion: requiresProfileCompletion,
+            showsPaywall: showsPaywall
+        )
+    }
 }
 
 private struct UITestShowcaseView: View {
@@ -64,15 +322,44 @@ private struct UITestShowcaseView: View {
     var body: some View {
         NavigationStack {
             switch screen {
+            case "splash": SplashScreenView()
             case "onboarding": OnboardingView(onComplete: {})
             case "onboarding2": OnboardingView(initialPage: .scan, onComplete: {})
             case "onboarding3": OnboardingView(initialPage: .details, onComplete: {})
             case "login": LoginView()
+            case "phone": PhoneEntryView(onAuthenticated: {}, authService: DevelopmentAuthService())
+            case "otp": OTPView(
+                verificationID: "development-verification",
+                phoneNumber: "+905065055555",
+                onAuthenticated: {},
+                authService: DevelopmentAuthService()
+            )
             case "premium": PremiumView()
             case "credits": CreditsView()
-            case "scanning": LookupProgressView(number: "5065055555", onResult: { _ in })
-            case "person": PersonDetailView(name: "Ahmet S.", number: "905055055050", onComments: {})
-            default: HomeView(onSearch: { _ in }, onRecord: { _ in }, onPremium: {})
+            case "scanning": LookupProgressView(number: "5065055555", onOutcome: { _ in })
+            case "hidden": LookupUnavailableView(reason: .hidden, number: "5065055555", onNewLookup: {})
+            case "notfound": LookupUnavailableView(reason: .notFound, number: "5065055555", onNewLookup: {})
+            case "person": PersonDetailView(
+                name: "Ahmet S.",
+                number: "905055055050",
+                onComments: {},
+                onAddComment: {},
+                onCredits: {}
+            )
+            case "comments": CommentsView(personName: "Ahmet S.", phoneNumber: "905055055050")
+            case "result": ResultView(
+                owner: PhoneOwner(
+                    phoneNumber: "905055055050",
+                    displayName: "Ahmet S.",
+                    firstName: "Ahmet",
+                    lastName: "S."
+                ),
+                onDetails: {},
+                onNewLookup: {},
+                onCredits: {}
+            )
+            case "profile": ProfileView(onSignOut: {})
+            default: HomeView(onSearch: { _ in }, onRecord: { _ in }, onPremium: {}, onCredits: {})
             }
         }
     }

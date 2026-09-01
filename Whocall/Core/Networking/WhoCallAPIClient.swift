@@ -54,3 +54,69 @@ struct WhoCallAPIClient: Sendable {
     }
 }
 
+@MainActor
+struct PhoneLookupService {
+    let directory: any VerifiedNumberDirectoryServicing
+    let apiClient: WhoCallAPIClient
+
+    init(
+        directory: any VerifiedNumberDirectoryServicing = VerifiedNumberDirectoryFactory.live(),
+        apiClient: WhoCallAPIClient = WhoCallAPIClient()
+    ) {
+        self.directory = directory
+        self.apiClient = apiClient
+    }
+
+    func lookup(number: String) async throws -> PhoneLookupOutcome {
+        let profile = ProfileServiceFactory.live()
+        if !ProfileVisibilityPreference.isVisible(userID: profile.currentUserID) {
+            return .requesterHidden
+        }
+        if canonical(profile.currentPhoneNumber) == canonical(number),
+           let displayName = profile.currentDisplayName,
+           let localOwner = owner(phoneNumber: number, displayName: displayName) {
+            return .found(localOwner.privacySafe)
+        }
+
+        switch try await directory.lookup(number: number) {
+        case let .found(verifiedOwner):
+            return .found(verifiedOwner.privacySafe)
+        case .hidden:
+            return .hidden
+        case .suppressed:
+            return .notFound
+        case .requesterHidden:
+            ProfileVisibilityPreference.setVisible(false, userID: profile.currentUserID)
+            return .requesterHidden
+        case .notRegistered:
+            break
+        }
+
+        do {
+            return .found(try await apiClient.lookup(number: number).privacySafe)
+        } catch let error as WhoCallClientError {
+            if case let .server(statusCode, response) = error,
+               statusCode == 404 || response?.error.code == .phoneNotFound {
+                return .notFound
+            }
+            throw error
+        }
+    }
+
+    private func canonical(_ number: String?) -> String {
+        String((number ?? "").filter(\.isNumber).suffix(10))
+    }
+
+    private func owner(phoneNumber: String, displayName: String) -> PhoneOwner? {
+        let parts = displayName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+        guard let firstName = parts.first, parts.count >= 2 else { return nil }
+        return PhoneOwner(
+            phoneNumber: canonical(phoneNumber),
+            displayName: displayName,
+            firstName: String(firstName),
+            lastName: String(parts.last ?? firstName)
+        )
+    }
+}

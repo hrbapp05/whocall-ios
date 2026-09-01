@@ -23,6 +23,9 @@ struct OnboardingView: View {
                     ForEach(OnboardingPage.allCases) { page in
                         pageCanvas(page)
                             .tag(page)
+                            .scaleEffect(selection == page ? 1 : 0.94)
+                            .opacity(selection == page ? 1 : 0.62)
+                            .animation(.spring(duration: 0.58, bounce: 0.16), value: selection)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
@@ -61,10 +64,13 @@ struct OnboardingView: View {
             Text(page.title)
                 .font(.system(size: 35, weight: .bold))
                 .multilineTextAlignment(.center)
-                .lineSpacing(-4)
+                .lineSpacing(-2)
                 .foregroundStyle(DesignTokens.ColorToken.primary)
-                .frame(width: 362, height: 84, alignment: .center)
-                .position(x: 201, y: 660)
+                .lineLimit(2)
+                .minimumScaleFactor(0.9)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 362, alignment: .center)
+                .position(x: 201, y: 651.5)
                 .figmaEntrance(delay: 0.16, distance: 12)
 
             Text(page.message)
@@ -72,8 +78,8 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(DesignTokens.ColorToken.secondary)
                 .lineSpacing(2)
-                .frame(width: 350, height: 50, alignment: .center)
-                .position(x: 201, y: 738)
+                .frame(width: 350, height: page.messageHeight, alignment: .top)
+                .position(x: 201, y: 705 + page.messageHeight / 2)
                 .figmaEntrance(delay: 0.24, distance: 10)
         }
         .frame(width: referenceSize.width, height: referenceSize.height)
@@ -87,7 +93,7 @@ struct OnboardingView: View {
             onComplete()
             return
         }
-        withAnimation(.easeInOut(duration: 0.28)) {
+        withAnimation(.spring(duration: 0.62, bounce: 0.16)) {
             selection = OnboardingPage.allCases[nextIndex]
         }
     }

@@ -1,0 +1,19 @@
+{
+  "name": "whocall-verified-number-directory",
+  "private": true,
+  "version": "1.0.0",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check index.js && node --check directory.js && node --check admin.js && node --check appleTransactions.js"
+  },
+  "dependencies": {
+    "@apple/app-store-server-library": "3.1.0",
+    "@google-cloud/functions-framework": "^5.0.5",
+    "firebase-admin": "14.2.0",
+    "firebase-functions": "7.3.2"
+  }
+}

@@ -1,0 +1,1 @@
+Profil tamamlama akışını iyileştirdik. Telefon doğrulamasından sonra geçerli ad ve soyad bilgilerinin eksiksiz kaydedilmesini sağlayan kontroller ekledik ve genel kararlılık iyileştirmeleri yaptık.

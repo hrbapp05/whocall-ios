@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct CreditBadge: View {
+    @Environment(PurchaseStore.self) private var purchaseStore
     var amount: Int?
-    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 5
 
     init(amount: Int? = nil) {
         self.amount = amount
@@ -14,7 +14,7 @@ struct CreditBadge: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 14, height: 14)
-            Text("\(displayAmount)")
+            Text(displayAmount)
                 .font(.system(size: 14, weight: .semibold))
         }
         .foregroundStyle(.black)
@@ -23,15 +23,24 @@ struct CreditBadge: View {
         .background(.white, in: .capsule)
         .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(displayAmount) kredi")
+        .accessibilityLabel(presentation.accessibilityLabel)
     }
 
-    private var displayAmount: Int { amount ?? storedAmount }
+    private var displayAmount: String {
+        presentation.text
+    }
+
+    private var presentation: CreditBadgePresentation {
+        CreditBadgePresentation(
+            isPremium: purchaseStore.isPremium,
+            creditBalance: amount ?? purchaseStore.creditBalance
+        )
+    }
 }
 
 struct ToolbarCreditBadge: View {
+    @Environment(PurchaseStore.self) private var purchaseStore
     var amount: Int?
-    @AppStorage(PurchaseStore.creditBalanceKey) private var storedAmount = 5
 
     init(amount: Int? = nil) {
         self.amount = amount
@@ -40,15 +49,45 @@ struct ToolbarCreditBadge: View {
     var body: some View {
         HStack(spacing: 5) {
             Image("CreditGlyph").resizable().scaledToFit().frame(width: 14, height: 14)
-            Text("\(displayAmount)").font(.system(size: 14, weight: .semibold))
+            Text(displayAmount).font(.system(size: 14, weight: .semibold))
         }
         .foregroundStyle(.black)
         .frame(width: 48, height: 30)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(displayAmount) kredi")
+        .accessibilityLabel(presentation.accessibilityLabel)
     }
 
-    private var displayAmount: Int { amount ?? storedAmount }
+    private var displayAmount: String {
+        presentation.text
+    }
+
+    private var presentation: CreditBadgePresentation {
+        CreditBadgePresentation(
+            isPremium: purchaseStore.isPremium,
+            creditBalance: amount ?? purchaseStore.creditBalance
+        )
+    }
+}
+
+struct CreditBadgePresentation: Equatable, Sendable {
+    let text: String
+    let accessibilityLabel: String
+
+    init(isPremium: Bool, creditBalance: Int) {
+        let balance = max(0, creditBalance)
+        if balance > 0 {
+            text = "\(balance)"
+            accessibilityLabel = isPremium
+                ? "\(balance) kredi; Premium ile sınırsız sorgulama"
+                : "\(balance) kredi"
+        } else if isPremium {
+            text = "∞"
+            accessibilityLabel = "Premium ile sınırsız sorgulama"
+        } else {
+            text = "0"
+            accessibilityLabel = "0 kredi"
+        }
+    }
 }
 
 struct FigmaTag: View {
@@ -61,6 +100,23 @@ struct FigmaTag: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
             .background(DesignTokens.ColorToken.brandBlue.opacity(0.11), in: .capsule)
+    }
+}
+
+struct FigmaBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.black)
+                .frame(width: 36, height: 36)
+                .background(.white, in: .circle)
+                .shadow(color: .black.opacity(0.07), radius: 18, y: 7)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Geri")
     }
 }
 
@@ -106,6 +162,28 @@ private struct FloatingMotion: ViewModifier {
     }
 }
 
+private struct PopEntranceMotion: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let delay: Double
+    let initialScale: CGFloat
+    @State private var isVisible = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .scaleEffect(isVisible || reduceMotion ? 1 : initialScale)
+            .onAppear {
+                guard !reduceMotion else {
+                    isVisible = true
+                    return
+                }
+                withAnimation(.spring(duration: 0.78, bounce: 0.43).delay(delay)) {
+                    isVisible = true
+                }
+            }
+    }
+}
+
 extension View {
     func figmaEntrance(delay: Double = 0, distance: CGFloat = 18) -> some View {
         modifier(EntranceMotion(delay: delay, distance: distance))
@@ -113,5 +191,9 @@ extension View {
 
     func gentleFloat(distance: CGFloat = 4, duration: Double = 2.2, delay: Double = 0) -> some View {
         modifier(FloatingMotion(distance: distance, duration: duration, delay: delay))
+    }
+
+    func popEntrance(delay: Double = 0, initialScale: CGFloat = 0.04) -> some View {
+        modifier(PopEntranceMotion(delay: delay, initialScale: initialScale))
     }
 }

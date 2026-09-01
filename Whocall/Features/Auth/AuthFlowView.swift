@@ -2,10 +2,13 @@ import SwiftUI
 
 struct AuthFlowView: View {
     let onAuthenticated: () -> Void
+    @State private var path: [AuthRoute] = []
 
     var body: some View {
-        NavigationStack {
-            LoginView()
+        NavigationStack(path: $path) {
+            LoginView {
+                path.append(.phone)
+            }
                 .navigationDestination(for: AuthRoute.self) { route in
                     switch route {
                     case .phone:

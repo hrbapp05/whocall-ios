@@ -1,0 +1,1 @@
+numara sorgulama,arayan kim,telefon,spam,dolandırıcı,kim aradı,bilinmeyen numara
