@@ -1,1 +1,1 @@
-Bu güncellemede performans ve kararlılık iyileştirmeleri yaptık. Numara sorgulama, üyelik ve kredi durumu ile topluluk etkileşimleri artık daha güvenilir çalışıyor. Oturum açılışındaki ve çeşitli ekranlardaki küçük hataları giderdik.
+Profil tamamlama akışını iyileştirdik. Telefon doğrulamasından sonra geçerli ad ve soyad bilgilerinin eksiksiz kaydedilmesini sağlayan kontroller ekledik ve genel kararlılık iyileştirmeleri yaptık.
